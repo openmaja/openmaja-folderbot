@@ -1,0 +1,278 @@
+{
+  "properties": {
+    "connectionReferences": {
+      "shared_onedriveforbusiness": {
+        "api": {
+          "name": "shared_onedriveforbusiness"
+        },
+        "connection": {
+          "connectionReferenceLogicalName": "omj_sharedonedriveforbusiness_2f22d"
+        },
+        "runtimeSource": "invoker"
+      }
+    },
+    "definition": {
+      "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+      "contentVersion": "undefined",
+      "parameters": {
+        "$authentication": {
+          "defaultValue": {},
+          "type": "SecureObject"
+        },
+        "$connections": {
+          "defaultValue": {},
+          "type": "Object"
+        },
+        "FolderBot Root Folder (omj_folderbot_root)": {
+          "defaultValue": "FolderBot",
+          "type": "String",
+          "metadata": {
+            "schemaName": "omj_folderbot_root",
+            "description": "FolderBot Root Folder"
+          }
+        }
+      },
+      "triggers": {
+        "manual": {
+          "type": "Request",
+          "kind": "Skills",
+          "inputs": {
+            "schema": {
+              "type": "object",
+              "properties": {
+                "session_id": {
+                  "description": "Session folder name — format YYYYMMDD-ShortTitle",
+                  "title": "session_id",
+                  "type": "string",
+                  "x-ms-content-hint": "TEXT",
+                  "x-ms-dynamically-added": true
+                },
+                "file_path": {
+                  "description": "Session-relative path, e.g. memory.md or outputs/report.txt",
+                  "title": "file_path",
+                  "type": "string",
+                  "x-ms-content-hint": "TEXT",
+                  "x-ms-dynamically-added": true
+                },
+                "content": {
+                  "description": "File content to write",
+                  "title": "content",
+                  "type": "string",
+                  "x-ms-content-hint": "TEXT",
+                  "x-ms-dynamically-added": true
+                }
+              },
+              "required": [
+                "session_id",
+                "file_path",
+                "content"
+              ]
+            }
+          }
+        }
+      },
+      "actions": {
+        "Scope:_file_exists": {
+          "type": "Scope",
+          "actions": {
+            "Get_file_metadata_using_path": {
+              "type": "OpenApiConnection",
+              "inputs": {
+                "parameters": {
+                  "path": "@{parameters('FolderBot Root Folder (omj_folderbot_root)')}/sessions/@{triggerBody()?['session_id']}/@{triggerBody()?['file_path']}"
+                },
+                "host": {
+                  "apiId": "/providers/Microsoft.PowerApps/apis/shared_onedriveforbusiness",
+                  "operationId": "GetFileMetadataByPath",
+                  "connectionName": "shared_onedriveforbusiness"
+                }
+              }
+            },
+            "Update_file": {
+              "type": "OpenApiConnection",
+              "inputs": {
+                "parameters": {
+                  "id": "@outputs('Get_file_metadata_using_path')?['body/Id']",
+                  "body": "@triggerBody()?['content']"
+                },
+                "host": {
+                  "apiId": "/providers/Microsoft.PowerApps/apis/shared_onedriveforbusiness",
+                  "operationId": "UpdateFile",
+                  "connectionName": "shared_onedriveforbusiness"
+                }
+              },
+              "runAfter": {
+                "Get_file_metadata_using_path": [
+                  "Succeeded"
+                ]
+              },
+              "runtimeConfiguration": {
+                "contentTransfer": {
+                  "transferMode": "Chunked"
+                }
+              }
+            }
+          },
+          "runAfter": {
+            "Initialize_variable_myFolderPath": [
+              "Succeeded"
+            ]
+          }
+        },
+        "Scope:_file_does_not_exist": {
+          "type": "Scope",
+          "actions": {
+            "Condition": {
+              "type": "If",
+              "expression": {
+                "or": [
+                  {
+                    "equals": [
+                      "@variables('myFolderPath')",
+                      null
+                    ]
+                  },
+                  {
+                    "equals": [
+                      "@variables('myFolderPath')",
+                      "''"
+                    ]
+                  }
+                ]
+              },
+              "actions": {
+                "Create_file_1": {
+                  "type": "OpenApiConnection",
+                  "inputs": {
+                    "parameters": {
+                      "folderPath": "@{parameters('FolderBot Root Folder (omj_folderbot_root)')}/sessions/@{triggerBody()?['session_id']}/",
+                      "name": "@variables('myFileName')",
+                      "body": "@triggerBody()?['content']"
+                    },
+                    "host": {
+                      "apiId": "/providers/Microsoft.PowerApps/apis/shared_onedriveforbusiness",
+                      "operationId": "CreateFile",
+                      "connectionName": "shared_onedriveforbusiness"
+                    }
+                  },
+                  "runtimeConfiguration": {
+                    "contentTransfer": {
+                      "transferMode": "Chunked"
+                    }
+                  }
+                }
+              },
+              "else": {
+                "actions": {
+                  "Create_file": {
+                    "type": "OpenApiConnection",
+                    "inputs": {
+                      "parameters": {
+                        "folderPath": "@{parameters('FolderBot Root Folder (omj_folderbot_root)')}/sessions/@{triggerBody()?['session_id']}/@{variables('myFolderPath')}",
+                        "name": "@variables('myFileName')",
+                        "body": "@triggerBody()?['content']"
+                      },
+                      "host": {
+                        "apiId": "/providers/Microsoft.PowerApps/apis/shared_onedriveforbusiness",
+                        "operationId": "CreateFile",
+                        "connectionName": "shared_onedriveforbusiness"
+                      }
+                    },
+                    "runtimeConfiguration": {
+                      "contentTransfer": {
+                        "transferMode": "Chunked"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "runAfter": {
+            "Scope:_file_exists": [
+              "Failed",
+              "TimedOut"
+            ]
+          }
+        },
+        "Respond_to_the_agent": {
+          "type": "Response",
+          "kind": "Skills",
+          "inputs": {
+            "schema": {
+              "type": "object",
+              "properties": {
+                "success": {
+                  "title": "success",
+                  "description": "whether the file has been written correctly.",
+                  "type": "string",
+                  "x-ms-content-hint": "TEXT",
+                  "x-ms-dynamically-added": true
+                },
+                "file_path": {
+                  "title": "file_path",
+                  "description": "the path of the updated/created file",
+                  "type": "string",
+                  "x-ms-content-hint": "TEXT",
+                  "x-ms-dynamically-added": true
+                }
+              },
+              "additionalProperties": {}
+            },
+            "statusCode": 200,
+            "body": {
+              "success": "true",
+              "file_path": "@{triggerBody()?['file_path']}"
+            }
+          },
+          "runAfter": {
+            "Scope:_file_does_not_exist": [
+              "Succeeded",
+              "TimedOut",
+              "Skipped",
+              "Failed"
+            ],
+            "Scope:_file_exists": [
+              "Succeeded",
+              "TimedOut",
+              "Skipped",
+              "Failed"
+            ]
+          }
+        },
+        "Initialize_variable_myFolderPath": {
+          "type": "InitializeVariable",
+          "inputs": {
+            "variables": [
+              {
+                "name": "myFolderPath",
+                "type": "string",
+                "value": "@replace(triggerBody()?['file_path'],variables('myFileName'),'')"
+              }
+            ]
+          },
+          "runAfter": {
+            "Initialize_variable_myFileName": [
+              "Succeeded"
+            ]
+          }
+        },
+        "Initialize_variable_myFileName": {
+          "type": "InitializeVariable",
+          "inputs": {
+            "variables": [
+              {
+                "name": "myFileName",
+                "type": "string",
+                "value": "@last(split(triggerBody()?['file_path'],'/'))"
+              }
+            ]
+          },
+          "runAfter": {}
+        }
+      }
+    },
+    "templateName": null
+  },
+  "schemaVersion": "1.0.0.0"
+}

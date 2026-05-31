@@ -1,0 +1,342 @@
+{
+  "properties": {
+    "connectionReferences": {
+      "shared_onedriveforbusiness": {
+        "api": {
+          "name": "shared_onedriveforbusiness"
+        },
+        "connection": {
+          "connectionReferenceLogicalName": "omj_sharedonedriveforbusiness_2f22d"
+        },
+        "runtimeSource": "invoker"
+      }
+    },
+    "definition": {
+      "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+      "contentVersion": "undefined",
+      "parameters": {
+        "$authentication": {
+          "defaultValue": {},
+          "type": "SecureObject"
+        },
+        "$connections": {
+          "defaultValue": {},
+          "type": "Object"
+        },
+        "FolderBot Root Folder (omj_folderbot_root)": {
+          "defaultValue": "FolderBot",
+          "type": "String",
+          "metadata": {
+            "schemaName": "omj_folderbot_root",
+            "description": "FolderBot Root Folder"
+          }
+        }
+      },
+      "triggers": {
+        "manual": {
+          "type": "Request",
+          "kind": "Skills",
+          "inputs": {
+            "schema": {
+              "type": "object",
+              "properties": {
+                "session_id": {
+                  "description": "Session folder name — format YYYYMMDD-ShortTitle",
+                  "title": "session_id",
+                  "type": "string",
+                  "x-ms-content-hint": "TEXT",
+                  "x-ms-dynamically-added": true
+                }
+              },
+              "required": [
+                "session_id"
+              ]
+            }
+          }
+        }
+      },
+      "actions": {
+        "Initialize_variable_rootPath": {
+          "type": "InitializeVariable",
+          "inputs": {
+            "variables": [
+              {
+                "name": "rootPath",
+                "type": "string",
+                "value": "@{parameters('FolderBot Root Folder (omj_folderbot_root)')}/sessions/@{triggerBody()['session_id']}"
+              }
+            ]
+          },
+          "runAfter": {}
+        },
+        "Respond_to_the_agent": {
+          "type": "Response",
+          "kind": "Skills",
+          "inputs": {
+            "schema": {
+              "type": "object",
+              "properties": {
+                "success": {
+                  "title": "success",
+                  "description": "whether the session was created successfully",
+                  "type": "string",
+                  "x-ms-content-hint": "TEXT",
+                  "x-ms-dynamically-added": true
+                },
+                "session_id": {
+                  "title": "session_id",
+                  "description": "the session id",
+                  "type": "string",
+                  "x-ms-content-hint": "TEXT",
+                  "x-ms-dynamically-added": true
+                },
+                "created_at": {
+                  "title": "created_at",
+                  "description": "creation time",
+                  "type": "string",
+                  "x-ms-content-hint": "TEXT",
+                  "x-ms-dynamically-added": true
+                },
+                "folder_path": {
+                  "title": "folder_path",
+                  "description": "the created folder path",
+                  "type": "string",
+                  "x-ms-content-hint": "TEXT",
+                  "x-ms-dynamically-added": true
+                }
+              },
+              "additionalProperties": {}
+            },
+            "statusCode": 200,
+            "body": {
+              "success": "true",
+              "session_id": "@{triggerBody()?['session_id']}",
+              "created_at": "@{utcNow()}",
+              "folder_path": "@{substring(outputs('Get_file_metadata')?['body/Path'],0,lastIndexOf(outputs('Get_file_metadata')?['body/Path'], '/'))}"
+            }
+          },
+          "runAfter": {
+            "Get_file_metadata": [
+              "Succeeded",
+              "TIMEDOUT",
+              "SKIPPED",
+              "FAILED"
+            ]
+          }
+        },
+        "Compose": {
+          "type": "Compose",
+          "inputs": {
+            "session_id": "@{triggerBody()['session_id']}",
+            "created_at": "@{utcNow()}",
+            "last_updated": "@{utcNow()}",
+            "locked": false,
+            "active_files": [],
+            "last_job_id": null,
+            "last_run": null
+          },
+          "runAfter": {
+            "Initialize_variable_rootPath": [
+              "Succeeded"
+            ]
+          }
+        },
+        "Create_file_state.json": {
+          "type": "OpenApiConnection",
+          "inputs": {
+            "parameters": {
+              "folderPath": "/@{variables('rootPath')}",
+              "name": "state.json",
+              "body": "@outputs('Compose')"
+            },
+            "host": {
+              "apiId": "/providers/Microsoft.PowerApps/apis/shared_onedriveforbusiness",
+              "operationId": "CreateFile",
+              "connectionName": "shared_onedriveforbusiness"
+            }
+          },
+          "runAfter": {
+            "Compose": [
+              "Succeeded"
+            ]
+          },
+          "runtimeConfiguration": {
+            "contentTransfer": {
+              "transferMode": "Chunked"
+            }
+          }
+        },
+        "Create_file_memory.md": {
+          "type": "OpenApiConnection",
+          "inputs": {
+            "parameters": {
+              "folderPath": "/@{variables('rootPath')}",
+              "name": "memory.md",
+              "body": "# Working Memory\n\n## Context\n<!-- Brief description of what this session is about. Updated by the agent. -->\n\n## Current Goal\n<!-- What we are trying to accomplish right now. -->\n\n## Decisions\n<!-- Key decisions made so far. -->\n\n## Open Questions\n<!-- Things to clarify or investigate before moving forward. -->"
+            },
+            "host": {
+              "apiId": "/providers/Microsoft.PowerApps/apis/shared_onedriveforbusiness",
+              "operationId": "CreateFile",
+              "connectionName": "shared_onedriveforbusiness"
+            }
+          },
+          "runAfter": {
+            "Create_file_state.json": [
+              "Succeeded"
+            ]
+          },
+          "runtimeConfiguration": {
+            "contentTransfer": {
+              "transferMode": "Chunked"
+            }
+          }
+        },
+        "Create_file_plan.md": {
+          "type": "OpenApiConnection",
+          "inputs": {
+            "parameters": {
+              "folderPath": "/@{variables('rootPath')}",
+              "name": "plan.md",
+              "body": "# Plan\n\n## Steps\n- [ ] (no steps yet — update after the user defines a goal)\n\n## Next Step\n(not started)"
+            },
+            "host": {
+              "apiId": "/providers/Microsoft.PowerApps/apis/shared_onedriveforbusiness",
+              "operationId": "CreateFile",
+              "connectionName": "shared_onedriveforbusiness"
+            }
+          },
+          "runAfter": {
+            "Create_file_memory.md": [
+              "Succeeded"
+            ]
+          },
+          "runtimeConfiguration": {
+            "contentTransfer": {
+              "transferMode": "Chunked"
+            }
+          }
+        },
+        "Create_file_history.jsonl": {
+          "type": "OpenApiConnection",
+          "inputs": {
+            "parameters": {
+              "folderPath": "/@{variables('rootPath')}",
+              "name": "history.jsonl",
+              "body": "@string('')"
+            },
+            "host": {
+              "apiId": "/providers/Microsoft.PowerApps/apis/shared_onedriveforbusiness",
+              "operationId": "CreateFile",
+              "connectionName": "shared_onedriveforbusiness"
+            }
+          },
+          "runAfter": {
+            "Create_file_plan.md": [
+              "Succeeded"
+            ]
+          },
+          "runtimeConfiguration": {
+            "contentTransfer": {
+              "transferMode": "Chunked"
+            }
+          }
+        },
+        "Get_file_metadata": {
+          "type": "OpenApiConnection",
+          "inputs": {
+            "parameters": {
+              "id": "@outputs('Create_file_history.jsonl')?['body/Id']"
+            },
+            "host": {
+              "apiId": "/providers/Microsoft.PowerApps/apis/shared_onedriveforbusiness",
+              "operationId": "GetFileMetadata",
+              "connectionName": "shared_onedriveforbusiness"
+            }
+          },
+          "runAfter": {
+            "Create_empty_file_into_jobs": [
+              "Succeeded"
+            ]
+          }
+        },
+        "Create_empty_file_into_inputs": {
+          "type": "OpenApiConnection",
+          "inputs": {
+            "parameters": {
+              "folderPath": "/@{variables('rootPath')}/inputs/",
+              "name": ".gitkeep",
+              "body": ".gitkeep"
+            },
+            "host": {
+              "apiId": "/providers/Microsoft.PowerApps/apis/shared_onedriveforbusiness",
+              "operationId": "CreateFile",
+              "connectionName": "shared_onedriveforbusiness"
+            }
+          },
+          "runAfter": {
+            "Create_file_history.jsonl": [
+              "Succeeded"
+            ]
+          },
+          "runtimeConfiguration": {
+            "contentTransfer": {
+              "transferMode": "Chunked"
+            }
+          }
+        },
+        "Create_empty_file_into_outputs": {
+          "type": "OpenApiConnection",
+          "inputs": {
+            "parameters": {
+              "folderPath": "/@{variables('rootPath')}/outputs/",
+              "name": ".gitkeep",
+              "body": ".gitkeep"
+            },
+            "host": {
+              "apiId": "/providers/Microsoft.PowerApps/apis/shared_onedriveforbusiness",
+              "operationId": "CreateFile",
+              "connectionName": "shared_onedriveforbusiness"
+            }
+          },
+          "runAfter": {
+            "Create_empty_file_into_inputs": [
+              "Succeeded"
+            ]
+          },
+          "runtimeConfiguration": {
+            "contentTransfer": {
+              "transferMode": "Chunked"
+            }
+          }
+        },
+        "Create_empty_file_into_jobs": {
+          "type": "OpenApiConnection",
+          "inputs": {
+            "parameters": {
+              "folderPath": "/@{variables('rootPath')}/jobs/",
+              "name": ".gitkeep",
+              "body": ".gitkeep"
+            },
+            "host": {
+              "apiId": "/providers/Microsoft.PowerApps/apis/shared_onedriveforbusiness",
+              "operationId": "CreateFile",
+              "connectionName": "shared_onedriveforbusiness"
+            }
+          },
+          "runAfter": {
+            "Create_empty_file_into_outputs": [
+              "Succeeded"
+            ]
+          },
+          "runtimeConfiguration": {
+            "contentTransfer": {
+              "transferMode": "Chunked"
+            }
+          }
+        }
+      }
+    },
+    "templateName": null
+  },
+  "schemaVersion": "1.0.0.0"
+}

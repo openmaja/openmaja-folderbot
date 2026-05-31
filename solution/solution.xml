@@ -1,0 +1,93 @@
+<ImportExportXml version="9.2.26051.150" SolutionPackageVersion="9.2" languagecode="1040" generatedBy="CrmLive" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" OrganizationVersion="9.2.26051.150" OrganizationSchemaType="Standard" CRMServerServiceabilityVersion="9.2.26051.00150">
+  <SolutionManifest>
+    <UniqueName>FolderBotCore</UniqueName>
+    <LocalizedNames>
+      <LocalizedName description="FolderBot" languagecode="1040" />
+    </LocalizedNames>
+    <Descriptions>
+      <Description description="https://github.com/openmaja/openmaja-folderbot" languagecode="1040" />
+    </Descriptions>
+    <Version>0.1.0.0</Version>
+    <Managed>0</Managed>
+    <Publisher>
+      <UniqueName>openmaja</UniqueName>
+      <LocalizedNames>
+        <LocalizedName description="OpenMaja" languagecode="1040" />
+      </LocalizedNames>
+      <Descriptions />
+      <EMailAddress></EMailAddress>
+      <SupportingWebsiteUrl>https://github.com/openmaja/openmaja-folderbot</SupportingWebsiteUrl>
+      <CustomizationPrefix>omj</CustomizationPrefix>
+      <CustomizationOptionValuePrefix>91485</CustomizationOptionValuePrefix>
+      <Addresses>
+        <Address>
+          <AddressNumber>1</AddressNumber>
+          <AddressTypeCode>1</AddressTypeCode>
+          <City xsi:nil="true"></City>
+          <County xsi:nil="true"></County>
+          <Country xsi:nil="true"></Country>
+          <Fax xsi:nil="true"></Fax>
+          <FreightTermsCode xsi:nil="true"></FreightTermsCode>
+          <ImportSequenceNumber xsi:nil="true"></ImportSequenceNumber>
+          <Latitude xsi:nil="true"></Latitude>
+          <Line1 xsi:nil="true"></Line1>
+          <Line2 xsi:nil="true"></Line2>
+          <Line3 xsi:nil="true"></Line3>
+          <Longitude xsi:nil="true"></Longitude>
+          <Name xsi:nil="true"></Name>
+          <PostalCode xsi:nil="true"></PostalCode>
+          <PostOfficeBox xsi:nil="true"></PostOfficeBox>
+          <PrimaryContactName xsi:nil="true"></PrimaryContactName>
+          <ShippingMethodCode>1</ShippingMethodCode>
+          <StateOrProvince xsi:nil="true"></StateOrProvince>
+          <Telephone1 xsi:nil="true"></Telephone1>
+          <Telephone2 xsi:nil="true"></Telephone2>
+          <Telephone3 xsi:nil="true"></Telephone3>
+          <TimeZoneRuleVersionNumber xsi:nil="true"></TimeZoneRuleVersionNumber>
+          <UPSZone xsi:nil="true"></UPSZone>
+          <UTCOffset xsi:nil="true"></UTCOffset>
+          <UTCConversionTimeZoneCode xsi:nil="true"></UTCConversionTimeZoneCode>
+        </Address>
+        <Address>
+          <AddressNumber>2</AddressNumber>
+          <AddressTypeCode>1</AddressTypeCode>
+          <City xsi:nil="true"></City>
+          <County xsi:nil="true"></County>
+          <Country xsi:nil="true"></Country>
+          <Fax xsi:nil="true"></Fax>
+          <FreightTermsCode xsi:nil="true"></FreightTermsCode>
+          <ImportSequenceNumber xsi:nil="true"></ImportSequenceNumber>
+          <Latitude xsi:nil="true"></Latitude>
+          <Line1 xsi:nil="true"></Line1>
+          <Line2 xsi:nil="true"></Line2>
+          <Line3 xsi:nil="true"></Line3>
+          <Longitude xsi:nil="true"></Longitude>
+          <Name xsi:nil="true"></Name>
+          <PostalCode xsi:nil="true"></PostalCode>
+          <PostOfficeBox xsi:nil="true"></PostOfficeBox>
+          <PrimaryContactName xsi:nil="true"></PrimaryContactName>
+          <ShippingMethodCode>1</ShippingMethodCode>
+          <StateOrProvince xsi:nil="true"></StateOrProvince>
+          <Telephone1 xsi:nil="true"></Telephone1>
+          <Telephone2 xsi:nil="true"></Telephone2>
+          <Telephone3 xsi:nil="true"></Telephone3>
+          <TimeZoneRuleVersionNumber xsi:nil="true"></TimeZoneRuleVersionNumber>
+          <UPSZone xsi:nil="true"></UPSZone>
+          <UTCOffset xsi:nil="true"></UTCOffset>
+          <UTCConversionTimeZoneCode xsi:nil="true"></UTCConversionTimeZoneCode>
+        </Address>
+      </Addresses>
+    </Publisher>
+    <RootComponents>
+      <RootComponent type="29" id="{19690c32-f055-f111-a825-7c1e5235b19f}" behavior="0" />
+      <RootComponent type="29" id="{282a85d8-9557-f111-a825-7c1e5235b19f}" behavior="0" />
+      <RootComponent type="29" id="{4b0eef42-f555-f111-a825-7c1e5235b19f}" behavior="0" />
+      <RootComponent type="29" id="{67269d82-f255-f111-a825-7c1e5235b19f}" behavior="0" />
+      <RootComponent type="29" id="{6e9fb541-ed55-f111-a825-7c1e5235b19f}" behavior="0" />
+      <RootComponent type="29" id="{8c24e212-9257-f111-a825-7c1e5235b19f}" behavior="0" />
+      <RootComponent type="29" id="{a352c4b4-9457-f111-a825-7c1e5235b19f}" behavior="0" />
+      <RootComponent type="29" id="{d42e22f0-ce55-f111-a825-7c1e5235b19f}" behavior="0" />
+    </RootComponents>
+    <MissingDependencies />
+  </SolutionManifest>
+</ImportExportXml>

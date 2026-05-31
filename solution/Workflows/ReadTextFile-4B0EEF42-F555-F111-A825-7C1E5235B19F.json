@@ -1,0 +1,276 @@
+{
+  "properties": {
+    "connectionReferences": {
+      "shared_onedriveforbusiness-1": {
+        "api": {
+          "name": "shared_onedriveforbusiness"
+        },
+        "connection": {
+          "connectionReferenceLogicalName": "omj_sharedonedriveforbusiness_2f22d"
+        },
+        "runtimeSource": "invoker"
+      }
+    },
+    "definition": {
+      "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+      "contentVersion": "undefined",
+      "parameters": {
+        "$authentication": {
+          "defaultValue": {},
+          "type": "SecureObject"
+        },
+        "$connections": {
+          "defaultValue": {},
+          "type": "Object"
+        },
+        "FolderBot Root Folder (omj_folderbot_root)": {
+          "defaultValue": "FolderBot",
+          "type": "String",
+          "metadata": {
+            "schemaName": "omj_folderbot_root",
+            "description": "FolderBot Root Folder"
+          }
+        },
+        "FolderBot Max File Size KB (omj_folderbot_max_file_size_kb)": {
+          "defaultValue": 500,
+          "type": "Int",
+          "metadata": {
+            "schemaName": "omj_folderbot_max_file_size_kb",
+            "description": "FolderBot Max File Size KB"
+          }
+        }
+      },
+      "triggers": {
+        "manual": {
+          "type": "Request",
+          "kind": "Skills",
+          "inputs": {
+            "schema": {
+              "type": "object",
+              "properties": {
+                "session_id": {
+                  "description": "Session folder name — format YYYYMMDD-ShortTitle",
+                  "title": "session_id",
+                  "type": "string",
+                  "x-ms-content-hint": "TEXT",
+                  "x-ms-dynamically-added": true
+                },
+                "file_path": {
+                  "description": "Session-relative path, e.g. memory.md or outputs/report.txt",
+                  "title": "file_path",
+                  "type": "string",
+                  "x-ms-content-hint": "TEXT",
+                  "x-ms-dynamically-added": true
+                }
+              },
+              "required": [
+                "session_id",
+                "file_path"
+              ]
+            }
+          }
+        }
+      },
+      "actions": {
+        "Get_file_metadata_using_path": {
+          "type": "OpenApiConnection",
+          "inputs": {
+            "parameters": {
+              "path": "@{parameters('FolderBot Root Folder (omj_folderbot_root)')}/sessions/@{triggerBody()?['session_id']}/@{triggerBody()?['file_path']}"
+            },
+            "host": {
+              "apiId": "/providers/Microsoft.PowerApps/apis/shared_onedriveforbusiness",
+              "operationId": "GetFileMetadataByPath",
+              "connectionName": "shared_onedriveforbusiness-1"
+            }
+          },
+          "runAfter": {
+            "Initialize_variable": [
+              "Succeeded"
+            ]
+          }
+        },
+        "Condition": {
+          "type": "If",
+          "expression": {
+            "or": [
+              {
+                "greater": [
+                  "@outputs('Get_file_metadata_using_path')?['body/Size']",
+                  "@variables('max_size_bytes')"
+                ]
+              }
+            ]
+          },
+          "actions": {
+            "Respond_to_the_agent": {
+              "type": "Response",
+              "kind": "Skills",
+              "inputs": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "title": "success",
+                      "description": "whether the file was read succesful",
+                      "type": "boolean",
+                      "x-ms-content-hint": "BOOLEAN",
+                      "x-ms-dynamically-added": true
+                    },
+                    "error": {
+                      "title": "error",
+                      "description": "The error message",
+                      "type": "string",
+                      "x-ms-content-hint": "TEXT",
+                      "x-ms-dynamically-added": true
+                    },
+                    "content": {
+                      "title": "content",
+                      "description": "the content of the read file",
+                      "type": "string",
+                      "x-ms-content-hint": "TEXT",
+                      "x-ms-dynamically-added": true
+                    }
+                  },
+                  "additionalProperties": {}
+                },
+                "statusCode": 200,
+                "body": {
+                  "success": false,
+                  "error": "File size @{outputs('Get_file_metadata_using_path')?['body/Size']} bytes exceeds limit @{mul(parameters('FolderBot Max File Size KB (omj_folderbot_max_file_size_kb)'),1024)}",
+                  "content": "\"\""
+                }
+              }
+            }
+          },
+          "else": {
+            "actions": {
+              "Get_file_content_using_path": {
+                "type": "OpenApiConnection",
+                "inputs": {
+                  "parameters": {
+                    "path": "@{parameters('FolderBot Root Folder (omj_folderbot_root)')}/sessions/@{triggerBody()?['session_id']}/@{triggerBody()?['file_path']}",
+                    "inferContentType": true
+                  },
+                  "host": {
+                    "apiId": "/providers/Microsoft.PowerApps/apis/shared_onedriveforbusiness",
+                    "operationId": "GetFileContentByPath",
+                    "connectionName": "shared_onedriveforbusiness-1"
+                  }
+                }
+              },
+              "Respond_to_the_agent_1": {
+                "type": "Response",
+                "kind": "Skills",
+                "inputs": {
+                  "schema": {
+                    "type": "object",
+                    "properties": {
+                      "success": {
+                        "title": "success",
+                        "description": "whether the file was read succesful",
+                        "type": "boolean",
+                        "x-ms-content-hint": "BOOLEAN",
+                        "x-ms-dynamically-added": true
+                      },
+                      "error": {
+                        "title": "error",
+                        "description": "The error message",
+                        "type": "string",
+                        "x-ms-content-hint": "TEXT",
+                        "x-ms-dynamically-added": true
+                      },
+                      "content": {
+                        "title": "content",
+                        "description": "the content of the read file",
+                        "type": "string",
+                        "x-ms-content-hint": "TEXT",
+                        "x-ms-dynamically-added": true
+                      }
+                    },
+                    "additionalProperties": {}
+                  },
+                  "statusCode": 200,
+                  "body": {
+                    "success": true,
+                    "error": "File read succesfully",
+                    "content": "@{body('Get_file_content_using_path')}"
+                  }
+                },
+                "runAfter": {
+                  "Get_file_content_using_path": [
+                    "Succeeded"
+                  ]
+                }
+              }
+            }
+          },
+          "runAfter": {
+            "Get_file_metadata_using_path": [
+              "Succeeded"
+            ]
+          }
+        },
+        "Respond_to_the_agent_2": {
+          "type": "Response",
+          "kind": "Skills",
+          "inputs": {
+            "schema": {
+              "type": "object",
+              "properties": {
+                "success": {
+                  "title": "success",
+                  "description": "whether the file was read succesful",
+                  "type": "boolean",
+                  "x-ms-content-hint": "BOOLEAN",
+                  "x-ms-dynamically-added": true
+                },
+                "error": {
+                  "title": "error",
+                  "description": "The error message",
+                  "type": "string",
+                  "x-ms-content-hint": "TEXT",
+                  "x-ms-dynamically-added": true
+                },
+                "content": {
+                  "title": "content",
+                  "description": "the content of the read file",
+                  "type": "string",
+                  "x-ms-content-hint": "TEXT",
+                  "x-ms-dynamically-added": true
+                }
+              },
+              "additionalProperties": {}
+            },
+            "statusCode": 200,
+            "body": {
+              "success": false,
+              "error": "Error accessing the file - it is probably non-existing or non-visible.",
+              "content": "\"\""
+            }
+          },
+          "runAfter": {
+            "Get_file_metadata_using_path": [
+              "Failed"
+            ]
+          }
+        },
+        "Initialize_variable": {
+          "type": "InitializeVariable",
+          "inputs": {
+            "variables": [
+              {
+                "name": "max_size_bytes",
+                "type": "integer",
+                "value": "@mul(1024,parameters('FolderBot Max File Size KB (omj_folderbot_max_file_size_kb)'))"
+              }
+            ]
+          },
+          "runAfter": {}
+        }
+      }
+    },
+    "templateName": null
+  },
+  "schemaVersion": "1.0.0.0"
+}

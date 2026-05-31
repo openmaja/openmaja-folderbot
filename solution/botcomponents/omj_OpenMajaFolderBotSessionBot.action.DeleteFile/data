@@ -1,0 +1,14 @@
+kind: TaskDialog
+modelDescription: Delete a file (always confirm with user first)
+outputs:
+  - propertyName: success
+
+action:
+  kind: InvokeFlowTaskAction
+  flowId: a352c4b4-9457-f111-a825-7c1e5235b19f
+  connectionProperties:
+    $kind: ConnectionProperties
+    diagnostics:
+    mode: Maker
+
+outputMode: All

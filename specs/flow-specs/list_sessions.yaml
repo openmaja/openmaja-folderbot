@@ -1,0 +1,35 @@
+name: ListSessions
+trigger: copilot_action
+description: Return all session folder names with their last-modified timestamps.
+
+inputs: {}
+
+outputs:
+  success:  { type: boolean }
+  sessions: { type: string, description: "JSON array of {name, last_modified, is_folder} objects for session folders only." }
+  error:    { type: string }
+
+steps:
+  # list_files_in_folder expects a folder ID, not a path. Resolve path → ID first.
+  - id: get_sessions_folder
+    action: onedrive.get_file_metadata_by_path
+    path: "/@{parameters('xyz_folderbot_root')}/sessions"
+
+  - id: list_folder
+    action: onedrive.list_files_in_folder
+    folder: "@{get_sessions_folder.body.Id}"
+
+  - id: select_fields
+    action: data.select
+    from: "@{list_folder.body.value}"
+    map:
+      name:          "@item()?['Name']"
+      last_modified: "@item()?['LastModifiedDateTime']"
+      is_folder:     "@item()?['IsFolder']"
+    filter: "is_folder = true"
+
+  - id: respond
+    action: copilot.respond
+    body:
+      success: true
+      sessions: "@{string(select_fields)}"

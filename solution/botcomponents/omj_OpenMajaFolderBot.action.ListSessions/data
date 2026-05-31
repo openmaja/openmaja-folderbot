@@ -1,0 +1,16 @@
+kind: TaskDialog
+modelDescription: List all existing sessions
+outputs:
+  - propertyName: success
+
+  - propertyName: sessions
+
+action:
+  kind: InvokeFlowTaskAction
+  flowId: 6e9fb541-ed55-f111-a825-7c1e5235b19f
+  connectionProperties:
+    $kind: ConnectionProperties
+    diagnostics:
+    mode: Maker
+
+outputMode: All

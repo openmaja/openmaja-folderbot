@@ -1,0 +1,71 @@
+name: AppendHistory
+trigger: copilot_action
+description: |
+  Append one or two JSONL entries (user + optional assistant) to history.jsonl.
+  Implements append as: read current content → concatenate new lines → overwrite.
+  Safe for single-user sessions.
+
+inputs:
+  session_id:
+    type: string
+    required: true
+  user_content:
+    type: string
+    required: true
+    description: "User message text for this turn."
+  assistant_content:
+    type: string
+    required: false
+    description: "Assistant response text. Leave blank to log user turn only."
+
+outputs:
+  success: { type: boolean }
+  error:   { type: string }
+
+steps:
+  - id: history_path
+    action: compose
+    value: "/@{parameters('xyz_folderbot_root')}/sessions/@{inputs.session_id}/history.jsonl"
+
+  - id: get_history_metadata
+    action: onedrive.get_file_metadata_by_path
+    path: "@{history_path}"
+
+  - id: read_existing
+    action: onedrive.get_file_content_by_path
+    path: "@{history_path}"
+
+  - id: user_line
+    action: compose
+    value: >
+      {"ts":"@{utcNow()}","role":"user","content":@{json(inputs.user_content)}}
+
+  - id: assistant_line
+    action: compose
+    value: |
+      @{if(
+        not(empty(inputs.assistant_content)),
+        concat('{"ts":"', utcNow(), '","role":"assistant","content":', json(inputs.assistant_content), '}'),
+        ''
+      )}
+
+  - id: new_content
+    action: compose
+    value: >
+      @{concat(
+        read_existing.body,
+        if(empty(read_existing.body), '', decodeUriComponent('%0A')),
+        user_line,
+        if(empty(assistant_line), '', decodeUriComponent('%0A')),
+        assistant_line
+      )}
+
+  - id: update_history
+    action: onedrive.update_file
+    file_id: "@{get_history_metadata.body.id}"
+    content: "@{new_content}"
+
+  - id: respond
+    action: copilot.respond
+    body:
+      success: true

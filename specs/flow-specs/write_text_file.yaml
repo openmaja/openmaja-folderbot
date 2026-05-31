@@ -1,0 +1,77 @@
+name: WriteTextFile
+trigger: copilot_action
+description: Create or overwrite a text file in the session folder. Automatically creates the file if it does not exist.
+
+inputs:
+  session_id:
+    type: string
+    required: true
+  file_path:
+    type: string
+    required: true
+    description: "Session-relative path, e.g. outputs/report.txt"
+  content:
+    type: string
+    required: true
+
+outputs:
+  success:   { type: boolean }
+  file_path: { type: string }
+  error:     { type: string }
+
+steps:
+  - id: full_path
+    action: compose
+    value: "/@{parameters('xyz_folderbot_root')}/sessions/@{inputs.session_id}/@{inputs.file_path}"
+
+  - id: filename
+    action: compose
+    value: "@{last(split(inputs.file_path, '/'))}"
+
+  - id: folder
+    action: compose
+    value: |
+      @{if(
+        contains(inputs.file_path, '/'),
+        concat('/', parameters('xyz_folderbot_root'), '/sessions/', inputs.session_id, '/',
+               replace(inputs.file_path, concat('/', filename), '')),
+        concat('/', parameters('xyz_folderbot_root'), '/sessions/', inputs.session_id)
+      )}
+
+  - id: file_exists
+    action: scope
+    description: "Normal overwrite path. This scope fails if the file does not exist."
+    actions:
+      - id: get_metadata
+        action: onedrive.get_file_metadata_by_path
+        path: "@{full_path}"
+      - id: update_file
+        action: onedrive.update_file
+        file_id: "@{get_metadata.body.id}"
+        content: "@{inputs.content}"
+
+  - id: file_does_not_exist
+    action: scope
+    run_after:
+      file_exists: [failed]
+    description: "Fallback path. Runs only when the update path failed, normally because the file does not exist."
+    actions:
+      - id: create_file
+        action: onedrive.create_file
+        folder: "@{folder}"
+        filename: "@{filename}"
+        content: "@{inputs.content}"
+
+  - id: respond
+    action: copilot.respond
+    # IMPORTANT: run_after must list BOTH succeeded and skipped so this step fires
+    # regardless of which scope handled the write:
+    #   - file_exists succeeded → file_does_not_exist is skipped   → respond runs
+    #   - file_exists failed    → file_does_not_exist succeeded    → respond runs
+    # The response body MUST be set explicitly here; do not rely on any intermediate
+    # output from either scope — both paths converge here and the body is the same.
+    run_after:
+      file_does_not_exist: [succeeded, skipped]
+    body:
+      success: true
+      file_path: "@{inputs.file_path}"

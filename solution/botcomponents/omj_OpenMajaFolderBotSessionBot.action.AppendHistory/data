@@ -1,0 +1,14 @@
+kind: TaskDialog
+modelDescription: Append a conversation turn to history.jsonl
+outputs:
+  - propertyName: success
+
+action:
+  kind: InvokeFlowTaskAction
+  flowId: 282a85d8-9557-f111-a825-7c1e5235b19f
+  connectionProperties:
+    $kind: ConnectionProperties
+    diagnostics:
+    mode: Maker
+
+outputMode: All

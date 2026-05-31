@@ -1,0 +1,54 @@
+name: GetSessionSummary
+trigger: copilot_action
+description: |
+  Read state.json, memory.md, and plan.md in a single call.
+  Used by /resume to rehydrate session context efficiently.
+
+inputs:
+  session_id:
+    type: string
+    required: true
+
+outputs:
+  success:    { type: boolean }
+  session_id: { type: string, description: "Echoed back for consistency." }
+  state:      { type: string, description: "Content of state.json" }
+  memory:     { type: string, description: "Content of memory.md" }
+  plan:       { type: string, description: "Content of plan.md" }
+  error:      { type: string }
+
+steps:
+  - id: base_path
+    action: compose
+    value: "/@{parameters('xyz_folderbot_root')}/sessions/@{inputs.session_id}"
+
+  - id: read_state
+    action: onedrive.get_file_content_by_path
+    path: "@{base_path}/state.json"
+
+  - id: read_memory
+    action: onedrive.get_file_content_by_path
+    path: "@{base_path}/memory.md"
+
+  - id: read_plan
+    action: onedrive.get_file_content_by_path
+    path: "@{base_path}/plan.md"
+
+  - id: respond
+    action: agent.respond
+    parameters:
+      success:
+        value: true
+        description: whether the summary was retrieved successfully
+      session_id:
+        value: "@{inputs.session_id}"
+        description: the session id (echoed back for consistency)
+      state:
+        value: "@{read_state.body}"
+        description: raw content of state.json
+      memory:
+        value: "@{read_memory.body}"
+        description: raw content of memory.md
+      plan:
+        value: "@{read_plan.body}"
+        description: raw content of plan.md

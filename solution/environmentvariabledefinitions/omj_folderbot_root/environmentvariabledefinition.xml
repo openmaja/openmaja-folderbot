@@ -1,0 +1,14 @@
+<environmentvariabledefinition schemaname="omj_folderbot_root">
+  <defaultvalue>FolderBot</defaultvalue>
+  <description default="FolderBot Root Folder">
+    <label description="FolderBot Root Folder" languagecode="1040" />
+  </description>
+  <displayname default="FolderBot Root Folder">
+    <label description="FolderBot Root Folder" languagecode="1040" />
+  </displayname>
+  <introducedversion>0.1.0.0</introducedversion>
+  <iscustomizable>1</iscustomizable>
+  <isrequired>0</isrequired>
+  <secretstore>0</secretstore>
+  <type>100000000</type>
+</environmentvariabledefinition>

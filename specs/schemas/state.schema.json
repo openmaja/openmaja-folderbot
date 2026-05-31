@@ -1,0 +1,37 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "FolderBot Session State",
+  "description": "Authoritative machine state for a FolderBot session. Written by the agent/flows; read by all components.",
+  "type": "object",
+  "required": ["session_id", "created_at", "last_updated", "locked", "active_files"],
+  "properties": {
+    "session_id":   { "type": "string", "description": "Session folder name (YYYYMMDD-ShortTitle)" },
+    "created_at":   { "type": "string", "format": "date-time" },
+    "last_updated": { "type": "string", "format": "date-time" },
+    "locked": {
+      "type": "boolean",
+      "description": "Write-safety flag. Set true before any critical write; release immediately after. Prevents concurrent writes via connector."
+    },
+    "active_files": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Session-relative paths of files currently being worked on."
+    },
+    "last_job_id": {
+      "type": ["string", "null"],
+      "description": "ID of the most recently created job. Plugin only; null in Core."
+    },
+    "last_run": {
+      "type": ["object", "null"],
+      "description": "Summary of the most recent job execution. Plugin only.",
+      "properties": {
+        "job_id":    { "type": "string" },
+        "status":    { "type": "string", "enum": ["success", "failed", "running"] },
+        "exit_code": { "type": ["integer", "null"] },
+        "timestamp": { "type": "string", "format": "date-time" },
+        "artifacts": { "type": "array", "items": { "type": "string" } }
+      }
+    }
+  },
+  "additionalProperties": false
+}

@@ -1,0 +1,18 @@
+kind: TaskDialog
+modelDescription: Read a text file from the session folder
+outputs:
+  - propertyName: success
+
+  - propertyName: error
+
+  - propertyName: content
+
+action:
+  kind: InvokeFlowTaskAction
+  flowId: 4b0eef42-f555-f111-a825-7c1e5235b19f
+  connectionProperties:
+    $kind: ConnectionProperties
+    diagnostics:
+    mode: Maker
+
+outputMode: All

@@ -1,0 +1,52 @@
+name: ListSessionFiles
+trigger: copilot_action
+description: List files (and folders) in a session folder or subfolder.
+
+inputs:
+  session_id:
+    type: string
+    required: true
+  subfolder:
+    type: string
+    required: false
+    description: "Session-relative subfolder path. Leave blank for session root."
+
+outputs:
+  success: { type: boolean }
+  files:   { type: string, description: "JSON array of file metadata objects." }
+  error:   { type: string }
+
+steps:
+  - id: folder_path
+    action: compose
+    value: |
+      @{if(
+        empty(inputs.subfolder),
+        concat('/', parameters('xyz_folderbot_root'), '/sessions/', inputs.session_id),
+        concat('/', parameters('xyz_folderbot_root'), '/sessions/', inputs.session_id, '/', inputs.subfolder)
+      )}
+
+  # list_files_in_folder expects an ID — resolve path to ID first.
+  - id: get_folder_metadata
+    action: onedrive.get_file_metadata_by_path
+    path: "@{folder_path}"
+
+  - id: list_folder
+    action: onedrive.list_files_in_folder
+    folder: "@{get_folder_metadata.body.Id}"
+
+  - id: select_fields
+    action: data.select
+    from: "@{list_folder.body.value}"
+    map:
+      name:          "@item()?['Name']"
+      path:          "@item()?['Path']"
+      size:          "@item()?['Size']"
+      last_modified: "@item()?['LastModifiedDateTime']"
+      is_folder:     "@item()?['IsFolder']"
+
+  - id: respond
+    action: copilot.respond
+    body:
+      success: true
+      files: "@{string(select_fields)}"

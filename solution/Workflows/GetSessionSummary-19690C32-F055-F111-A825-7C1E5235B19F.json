@@ -1,0 +1,237 @@
+{
+  "properties": {
+    "connectionReferences": {
+      "shared_onedriveforbusiness-1": {
+        "api": {
+          "name": "shared_onedriveforbusiness"
+        },
+        "connection": {
+          "connectionReferenceLogicalName": "omj_sharedonedriveforbusiness_2f22d"
+        },
+        "runtimeSource": "invoker"
+      }
+    },
+    "definition": {
+      "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+      "contentVersion": "undefined",
+      "parameters": {
+        "$authentication": {
+          "defaultValue": {},
+          "type": "SecureObject"
+        },
+        "$connections": {
+          "defaultValue": {},
+          "type": "Object"
+        },
+        "FolderBot Root Folder (omj_folderbot_root)": {
+          "defaultValue": "FolderBot",
+          "type": "String",
+          "metadata": {
+            "schemaName": "omj_folderbot_root",
+            "description": "FolderBot Root Folder"
+          }
+        }
+      },
+      "triggers": {
+        "manual": {
+          "type": "Request",
+          "kind": "Skills",
+          "inputs": {
+            "schema": {
+              "type": "object",
+              "properties": {
+                "session_id": {
+                  "description": "Session folder name — format YYYYMMDD-ShortTitle",
+                  "title": "session_id",
+                  "type": "string",
+                  "x-ms-content-hint": "TEXT",
+                  "x-ms-dynamically-added": true
+                }
+              },
+              "required": [
+                "session_id"
+              ]
+            }
+          }
+        }
+      },
+      "actions": {
+        "Get_file_content_state.json": {
+          "type": "OpenApiConnection",
+          "inputs": {
+            "parameters": {
+              "path": "@{parameters('FolderBot Root Folder (omj_folderbot_root)')}/sessions/@{triggerBody()?['session_id']}/state.json",
+              "inferContentType": true
+            },
+            "host": {
+              "apiId": "/providers/Microsoft.PowerApps/apis/shared_onedriveforbusiness",
+              "operationId": "GetFileContentByPath",
+              "connectionName": "shared_onedriveforbusiness-1"
+            }
+          },
+          "runAfter": {}
+        },
+        "Get_file_content_memory.md": {
+          "type": "OpenApiConnection",
+          "inputs": {
+            "parameters": {
+              "path": "@{parameters('FolderBot Root Folder (omj_folderbot_root)')}/sessions/@{triggerBody()?['session_id']}/memory.md",
+              "inferContentType": true
+            },
+            "host": {
+              "apiId": "/providers/Microsoft.PowerApps/apis/shared_onedriveforbusiness",
+              "operationId": "GetFileContentByPath",
+              "connectionName": "shared_onedriveforbusiness-1"
+            }
+          },
+          "runAfter": {
+            "Get_file_content_state.json": [
+              "Succeeded"
+            ]
+          }
+        },
+        "Get_file_content_plan.md": {
+          "type": "OpenApiConnection",
+          "inputs": {
+            "parameters": {
+              "path": "@{parameters('FolderBot Root Folder (omj_folderbot_root)')}/sessions/@{triggerBody()?['session_id']}/plan.md",
+              "inferContentType": true
+            },
+            "host": {
+              "apiId": "/providers/Microsoft.PowerApps/apis/shared_onedriveforbusiness",
+              "operationId": "GetFileContentByPath",
+              "connectionName": "shared_onedriveforbusiness-1"
+            }
+          },
+          "runAfter": {
+            "Get_file_content_memory.md": [
+              "Succeeded"
+            ]
+          }
+        },
+        "Respond_to_the_agent": {
+          "type": "Response",
+          "kind": "Skills",
+          "inputs": {
+            "schema": {
+              "type": "object",
+              "properties": {
+                "success": {
+                  "title": "success",
+                  "description": "whether the content of the files was collected correctly",
+                  "type": "string",
+                  "x-ms-content-hint": "TEXT",
+                  "x-ms-dynamically-added": true
+                },
+                "session_id": {
+                  "title": "session_id",
+                  "description": "the session id",
+                  "type": "string",
+                  "x-ms-content-hint": "TEXT",
+                  "x-ms-dynamically-added": true
+                },
+                "state": {
+                  "title": "state",
+                  "description": "content of state.json",
+                  "type": "string",
+                  "x-ms-content-hint": "TEXT",
+                  "x-ms-dynamically-added": true
+                },
+                "memory": {
+                  "title": "memory",
+                  "description": "content of memory.md",
+                  "type": "string",
+                  "x-ms-content-hint": "TEXT",
+                  "x-ms-dynamically-added": true
+                },
+                "plan": {
+                  "title": "plan",
+                  "description": "content of plan.md",
+                  "type": "string",
+                  "x-ms-content-hint": "TEXT",
+                  "x-ms-dynamically-added": true
+                }
+              },
+              "additionalProperties": {}
+            },
+            "statusCode": 200,
+            "body": {
+              "success": "true",
+              "session_id": "@{triggerBody()?['session_id']}",
+              "state": "@{body('Get_file_content_state.json')}",
+              "memory": "@{body('Get_file_content_memory.md')}",
+              "plan": "@{body('Get_file_content_plan.md')}"
+            }
+          },
+          "runAfter": {
+            "Get_file_content_plan.md": [
+              "Succeeded"
+            ]
+          }
+        },
+        "Respond_to_the_agent_1": {
+          "type": "Response",
+          "kind": "Skills",
+          "inputs": {
+            "schema": {
+              "type": "object",
+              "properties": {
+                "success": {
+                  "title": "success",
+                  "description": "whether the content of the files was collected correctly",
+                  "type": "string",
+                  "x-ms-content-hint": "TEXT",
+                  "x-ms-dynamically-added": true
+                },
+                "session_id": {
+                  "title": "session_id",
+                  "description": "the session id",
+                  "type": "string",
+                  "x-ms-content-hint": "TEXT",
+                  "x-ms-dynamically-added": true
+                },
+                "state": {
+                  "title": "state",
+                  "description": "content of state.json",
+                  "type": "string",
+                  "x-ms-content-hint": "TEXT",
+                  "x-ms-dynamically-added": true
+                },
+                "memory": {
+                  "title": "memory",
+                  "description": "content of memory.md",
+                  "type": "string",
+                  "x-ms-content-hint": "TEXT",
+                  "x-ms-dynamically-added": true
+                },
+                "plan": {
+                  "title": "plan",
+                  "description": "content of plan.md",
+                  "type": "string",
+                  "x-ms-content-hint": "TEXT",
+                  "x-ms-dynamically-added": true
+                }
+              },
+              "additionalProperties": {}
+            },
+            "statusCode": 200,
+            "body": {
+              "success": "false",
+              "session_id": "@{triggerBody()?['session_id']}",
+              "state": "not found.",
+              "memory": "not found.",
+              "plan": "not found."
+            }
+          },
+          "runAfter": {
+            "Get_file_content_state.json": [
+              "Failed"
+            ]
+          }
+        }
+      }
+    },
+    "templateName": null
+  },
+  "schemaVersion": "1.0.0.0"
+}

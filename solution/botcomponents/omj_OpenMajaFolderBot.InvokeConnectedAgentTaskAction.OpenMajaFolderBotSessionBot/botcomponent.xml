@@ -1,0 +1,11 @@
+<botcomponent schemaname="omj_OpenMajaFolderBot.InvokeConnectedAgentTaskAction.OpenMajaFolderBotSessionBot">
+  <componenttype>9</componenttype>
+  <description>Handle all file and workspace operations: /files, /open, /write, /plan, and any task that requires reading or writing files in the session folder.</description>
+  <iscustomizable>0</iscustomizable>
+  <name>OpenMaja FolderBot SessionBot</name>
+  <parentbotid>
+    <schemaname>omj_OpenMajaFolderBot</schemaname>
+  </parentbotid>
+  <statecode>0</statecode>
+  <statuscode>1</statuscode>
+</botcomponent>

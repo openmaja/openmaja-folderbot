@@ -1,0 +1,22 @@
+kind: TaskDialog
+modelDescription: Read state, memory, and plan in one call
+outputs:
+  - propertyName: success
+
+  - propertyName: session_id
+
+  - propertyName: state
+
+  - propertyName: memory
+
+  - propertyName: plan
+
+action:
+  kind: InvokeFlowTaskAction
+  flowId: 19690c32-f055-f111-a825-7c1e5235b19f
+  connectionProperties:
+    $kind: ConnectionProperties
+    diagnostics:
+    mode: Invoker
+
+outputMode: All

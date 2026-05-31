@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "FolderBot Job Results",
+  "description": "Written by the job runner after execution. Read by SessionBot to interpret and report outcomes.",
+  "type": "object",
+  "required": ["job_id", "status", "exit_code", "duration_ms"],
+  "properties": {
+    "job_id":      { "type": "string" },
+    "status":      { "type": "string", "enum": ["success", "failed"] },
+    "exit_code":   { "type": "integer" },
+    "duration_ms": { "type": "integer", "minimum": 0 },
+    "artifacts": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Session-relative paths of files produced by the job."
+    },
+    "stdout_tail": {
+      "type": "string",
+      "description": "Last 4 KB of stdout. Bounded to stay within connector payload limits."
+    },
+    "stderr_tail": {
+      "type": "string",
+      "description": "Last 4 KB of stderr. Bounded to stay within connector payload limits."
+    }
+  },
+  "additionalProperties": false
+}

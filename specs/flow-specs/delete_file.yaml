@@ -1,0 +1,33 @@
+name: DeleteFile
+trigger: copilot_action
+description: Delete a file from the session folder.
+
+inputs:
+  session_id:
+    type: string
+    required: true
+  file_path:
+    type: string
+    required: true
+
+outputs:
+  success: { type: boolean }
+  error:   { type: string }
+
+steps:
+  - id: full_path
+    action: compose
+    value: "/@{parameters('xyz_folderbot_root')}/sessions/@{inputs.session_id}/@{inputs.file_path}"
+
+  - id: get_metadata
+    action: onedrive.get_file_metadata_by_path
+    path: "@{full_path}"
+
+  - id: delete_file
+    action: onedrive.delete_file
+    file_id: "@{get_metadata.body.id}"
+
+  - id: respond
+    action: copilot.respond
+    body:
+      success: true

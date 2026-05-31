@@ -1,0 +1,10 @@
+<botcomponent schemaname="omj_OpenMajaFolderBot.action.CreateSession">
+  <componenttype>9</componenttype>
+  <iscustomizable>0</iscustomizable>
+  <name>CreateSession</name>
+  <parentbotid>
+    <schemaname>omj_OpenMajaFolderBot</schemaname>
+  </parentbotid>
+  <statecode>0</statecode>
+  <statuscode>1</statuscode>
+</botcomponent>

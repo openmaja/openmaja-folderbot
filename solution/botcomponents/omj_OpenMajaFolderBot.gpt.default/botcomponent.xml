@@ -1,0 +1,12 @@
+<botcomponent schemaname="omj_OpenMajaFolderBot.gpt.default">
+  <componenttype>15</componenttype>
+  <description>Session management and routing agent for FolderBot workspaces.
+</description>
+  <iscustomizable>0</iscustomizable>
+  <name>OpenMaja FolderBot</name>
+  <parentbotid>
+    <schemaname>omj_OpenMajaFolderBot</schemaname>
+  </parentbotid>
+  <statecode>0</statecode>
+  <statuscode>1</statuscode>
+</botcomponent>

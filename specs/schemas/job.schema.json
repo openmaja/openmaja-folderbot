@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "FolderBot Job",
+  "description": "Execution contract written by the agent/SessionBot for script execution jobs.",
+  "type": "object",
+  "required": ["job_id", "status", "entrypoint", "timeout_seconds", "inputs", "expected_outputs"],
+  "properties": {
+    "job_id": {
+      "type": "string",
+      "pattern": "^job-[0-9]{3,}$",
+      "description": "Unique job identifier within the session. Format: job-001, job-002, ..."
+    },
+    "status": {
+      "type": "string",
+      "enum": ["pending", "running", "success", "failed"],
+      "description": "pending: waiting for runner. running: claimed by runner. success/failed: terminal."
+    },
+    "entrypoint": {
+      "type": "string",
+      "pattern": "\\.(py|ps1)$",
+      "description": "Filename of the script to execute (.py or .ps1). Relative to the job folder."
+    },
+    "timeout_seconds": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 3600,
+      "description": "Maximum execution time. Runner kills the process if exceeded."
+    },
+    "inputs":           { "type": "array", "items": { "type": "string" }, "description": "Session-relative paths of input files." },
+    "expected_outputs": { "type": "array", "items": { "type": "string" }, "description": "Session-relative paths the script is expected to produce." }
+  },
+  "additionalProperties": false
+}

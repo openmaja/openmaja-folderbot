@@ -1,0 +1,46 @@
+name: ReadTextFile
+trigger: copilot_action
+description: Read a text-based file from the session folder. Enforces a conservative size cap to avoid connector payload issues and LLM context blow-up; file extensions are not restricted.
+
+inputs:
+  session_id:
+    type: string
+    required: true
+  file_path:
+    type: string
+    required: true
+    description: "Session-relative path, e.g. memory.md or outputs/report.txt"
+
+outputs:
+  success: { type: boolean }
+  content: { type: string }
+  error:   { type: string }
+
+steps:
+  - id: full_path
+    action: compose
+    value: "/@{parameters('xyz_folderbot_root')}/sessions/@{inputs.session_id}/@{inputs.file_path}"
+
+  - id: get_metadata
+    action: onedrive.get_file_metadata_by_path
+    path: "@{full_path}"
+
+  - id: check_size
+    action: condition
+    if: "@greater(int(get_metadata.body.size), mul(int(parameters('xyz_folderbot_max_file_size_kb')), 1024))"
+    true:
+      - action: copilot.respond
+        body:
+          success: false
+          error: "File size exceeds the configured limit (@{parameters('xyz_folderbot_max_file_size_kb')} KB)."
+      - action: terminate
+
+  - id: read_content
+    action: onedrive.get_file_content_by_path
+    path: "@{full_path}"
+
+  - id: respond
+    action: copilot.respond
+    body:
+      success: true
+      content: "@{read_content.body}"

@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "FolderBot History Entry",
+  "description": "One line in history.jsonl. The file is append-only; each line is a self-contained JSON object.",
+  "type": "object",
+  "required": ["ts", "role", "content"],
+  "properties": {
+    "ts":         { "type": "string", "format": "date-time", "description": "ISO 8601 timestamp" },
+    "role":       { "type": "string", "enum": ["user", "assistant", "system"] },
+    "content":    { "type": "string" },
+    "tool_calls": {
+      "type": "array",
+      "description": "Optional: tool calls made in this turn.",
+      "items": {
+        "type": "object",
+        "properties": {
+          "tool": { "type": "string" },
+          "input": { "type": "object" },
+          "output": {}
+        }
+      }
+    },
+    "artifacts": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Optional: session-relative paths of files created or modified in this turn."
+    }
+  },
+  "additionalProperties": false
+}

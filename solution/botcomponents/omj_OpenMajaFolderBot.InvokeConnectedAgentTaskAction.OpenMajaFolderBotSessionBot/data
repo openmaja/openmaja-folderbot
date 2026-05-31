@@ -1,0 +1,8 @@
+kind: TaskDialog
+modelDisplayName: OpenMaja FolderBot SessionBot
+modelDescription: "\"Handle all file and workspace operations: /files, /open, /write, /plan, /run, and any task that requires reading or writing files in the session folder"
+action:
+  kind: InvokeConnectedAgentTaskAction
+  botSchemaName: omj_OpenMajaFolderBotSessionBot
+  historyType:
+    kind: ConversationHistory

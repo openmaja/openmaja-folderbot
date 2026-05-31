@@ -1,0 +1,16 @@
+kind: TaskDialog
+modelDescription: Create or overwrite a text file
+outputs:
+  - propertyName: success
+
+  - propertyName: file_path
+
+action:
+  kind: InvokeFlowTaskAction
+  flowId: 8c24e212-9257-f111-a825-7c1e5235b19f
+  connectionProperties:
+    $kind: ConnectionProperties
+    diagnostics:
+    mode: Maker
+
+outputMode: All

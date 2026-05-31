@@ -1,0 +1,29 @@
+<botcomponent_workflowset>
+  <botcomponent_workflow botcomponentid.schemaname="omj_OpenMajaFolderBot.action.CreateSession" workflowid.workflowid="d42e22f0-ce55-f111-a825-7c1e5235b19f">
+    <iscustomizable>1</iscustomizable>
+  </botcomponent_workflow>
+  <botcomponent_workflow botcomponentid.schemaname="omj_OpenMajaFolderBot.action.GetSessionSummary" workflowid.workflowid="19690c32-f055-f111-a825-7c1e5235b19f">
+    <iscustomizable>1</iscustomizable>
+  </botcomponent_workflow>
+  <botcomponent_workflow botcomponentid.schemaname="omj_OpenMajaFolderBot.action.ListSessions" workflowid.workflowid="6e9fb541-ed55-f111-a825-7c1e5235b19f">
+    <iscustomizable>1</iscustomizable>
+  </botcomponent_workflow>
+  <botcomponent_workflow botcomponentid.schemaname="omj_OpenMajaFolderBotSessionBot.action.AppendHistory" workflowid.workflowid="282a85d8-9557-f111-a825-7c1e5235b19f">
+    <iscustomizable>1</iscustomizable>
+  </botcomponent_workflow>
+  <botcomponent_workflow botcomponentid.schemaname="omj_OpenMajaFolderBotSessionBot.action.DeleteFile" workflowid.workflowid="a352c4b4-9457-f111-a825-7c1e5235b19f">
+    <iscustomizable>1</iscustomizable>
+  </botcomponent_workflow>
+  <botcomponent_workflow botcomponentid.schemaname="omj_OpenMajaFolderBotSessionBot.action.GetSessionSummary" workflowid.workflowid="19690c32-f055-f111-a825-7c1e5235b19f">
+    <iscustomizable>1</iscustomizable>
+  </botcomponent_workflow>
+  <botcomponent_workflow botcomponentid.schemaname="omj_OpenMajaFolderBotSessionBot.action.ListSessionFiles" workflowid.workflowid="67269d82-f255-f111-a825-7c1e5235b19f">
+    <iscustomizable>1</iscustomizable>
+  </botcomponent_workflow>
+  <botcomponent_workflow botcomponentid.schemaname="omj_OpenMajaFolderBotSessionBot.action.ReadTextFile" workflowid.workflowid="4b0eef42-f555-f111-a825-7c1e5235b19f">
+    <iscustomizable>1</iscustomizable>
+  </botcomponent_workflow>
+  <botcomponent_workflow botcomponentid.schemaname="omj_OpenMajaFolderBotSessionBot.action.WriteTextFile" workflowid.workflowid="8c24e212-9257-f111-a825-7c1e5235b19f">
+    <iscustomizable>1</iscustomizable>
+  </botcomponent_workflow>
+</botcomponent_workflowset>

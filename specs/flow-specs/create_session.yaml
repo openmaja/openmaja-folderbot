@@ -1,0 +1,112 @@
+name: CreateSession
+trigger: copilot_action
+description: Create a new session workspace with all initial files and subfolders.
+
+inputs:
+  session_id:
+    type: string
+    required: true
+    description: Session folder name. Format YYYYMMDD-ShortTitle.
+
+outputs:
+  success:     { type: boolean }
+  session_id:  { type: string }
+  created_at:  { type: string, format: date-time }
+  folder_path: { type: string, description: "Created session folder path." }
+  error:       { type: string, description: "Present only on failure." }
+
+steps:
+  # OneDrive has no "create folder" action. Folders are created implicitly when
+  # a file is written to a non-existent path. Steps write_inputs_gitkeep,
+  # write_outputs_gitkeep, and write_jobs_gitkeep create empty .gitkeep files
+  # to force the three subfolders to materialise at session creation time.
+
+  - id: root_path
+    action: compose
+    value: "@{parameters('xyz_folderbot_root')}/sessions/@{inputs.session_id}"
+
+  - id: write_state_json
+    action: onedrive.create_file
+    folder: "/@{root_path}"
+    filename: state.json
+    content: |
+      {
+        "session_id": "@{inputs.session_id}",
+        "created_at": "@{utcNow()}",
+        "last_updated": "@{utcNow()}",
+        "locked": false,
+        "active_files": [],
+        "last_job_id": null,
+        "last_run": null
+      }
+
+  - id: write_memory_md
+    action: onedrive.create_file
+    folder: "/@{root_path}"
+    filename: memory.md
+    content: file:specs/templates/memory.md
+
+  - id: write_plan_md
+    action: onedrive.create_file
+    folder: "/@{root_path}"
+    filename: plan.md
+    content: file:specs/templates/plan.md
+
+  - id: write_history_jsonl
+    action: onedrive.create_file
+    folder: "/@{root_path}"
+    filename: history.jsonl
+    content: ""
+
+  - id: write_inputs_gitkeep
+    action: onedrive.create_file
+    folder: "/@{root_path}/inputs"
+    filename: .gitkeep
+    content: ""
+
+  - id: write_outputs_gitkeep
+    action: onedrive.create_file
+    folder: "/@{root_path}/outputs"
+    filename: .gitkeep
+    content: ""
+
+  - id: write_jobs_gitkeep
+    action: onedrive.create_file
+    folder: "/@{root_path}/jobs"
+    filename: .gitkeep
+    content: ""
+
+  - id: get_file_metadata
+    action: onedrive.get_file_metadata_by_path
+    path: "/@{root_path}/state.json"
+
+  - id: folder_path
+    action: compose
+    value: "@{substring(outputs('Get_file_metadata')?['body/Path'], 0, lastIndexOf(outputs('Get_file_metadata')?['body/Path'], '/'))}"
+
+  - id: respond
+    action: agent.respond
+    parameters:
+      success:
+        value: true
+        description: whether the session was created successfully
+      session_id:
+        value: "@{inputs.session_id}"
+        description: the session id
+      created_at:
+        value: "@{utcNow()}"
+        description: creation time
+      folder_path:
+        value: "@{folder_path}"
+        description: the created folder path
+
+error_handling:
+  on_failure:
+    action: agent.respond
+    parameters:
+      success:
+        value: false
+        description: whether the session was created successfully
+      error:
+        value: "@{error().message}"
+        description: error details

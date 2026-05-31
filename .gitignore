@@ -1,0 +1,5 @@
+last_updated.txt
+
+# Test run reports (not kept in repo)
+tests/test-report*.md
+tests/to-be-retested.md

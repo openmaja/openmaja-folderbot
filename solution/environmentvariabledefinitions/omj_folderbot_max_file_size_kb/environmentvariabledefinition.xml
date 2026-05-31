@@ -1,0 +1,14 @@
+<environmentvariabledefinition schemaname="omj_folderbot_max_file_size_kb">
+  <defaultvalue>500</defaultvalue>
+  <description default="FolderBot Max File Size KB">
+    <label description="FolderBot Max File Size KB" languagecode="1040" />
+  </description>
+  <displayname default="FolderBot Max File Size KB">
+    <label description="FolderBot Max File Size KB" languagecode="1040" />
+  </displayname>
+  <introducedversion>0.1.0.0</introducedversion>
+  <iscustomizable>1</iscustomizable>
+  <isrequired>0</isrequired>
+  <secretstore>0</secretstore>
+  <type>100000001</type>
+</environmentvariabledefinition>

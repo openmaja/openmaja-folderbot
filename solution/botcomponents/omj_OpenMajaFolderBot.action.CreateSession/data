@@ -1,0 +1,20 @@
+kind: TaskDialog
+modelDescription: Create a new session workspace with all initial files
+outputs:
+  - propertyName: success
+
+  - propertyName: session_id
+
+  - propertyName: created_at
+
+  - propertyName: folder_path
+
+action:
+  kind: InvokeFlowTaskAction
+  flowId: d42e22f0-ce55-f111-a825-7c1e5235b19f
+  connectionProperties:
+    $kind: ConnectionProperties
+    diagnostics:
+    mode: Maker
+
+outputMode: All

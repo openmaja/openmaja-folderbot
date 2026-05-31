@@ -1,0 +1,23 @@
+kind: TaskDialog
+inputs:
+  - kind: AutomaticTaskInput
+    propertyName: subfolder
+
+  - kind: AutomaticTaskInput
+    propertyName: session_id
+
+modelDescription: List files in the session root folder or a subfolder.
+outputs:
+  - propertyName: success
+
+  - propertyName: files
+
+action:
+  kind: InvokeFlowTaskAction
+  flowId: 67269d82-f255-f111-a825-7c1e5235b19f
+  connectionProperties:
+    $kind: ConnectionProperties
+    diagnostics:
+    mode: Maker
+
+outputMode: All
