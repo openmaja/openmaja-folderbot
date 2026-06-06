@@ -1,0 +1,218 @@
+{
+  "properties": {
+    "connectionReferences": {
+      "shared_onedriveforbusiness": {
+        "api": {
+          "name": "shared_onedriveforbusiness"
+        },
+        "connection": {
+          "connectionReferenceLogicalName": "omj_sharedonedriveforbusiness_2f22d"
+        },
+        "runtimeSource": "invoker"
+      }
+    },
+    "definition": {
+      "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+      "contentVersion": "undefined",
+      "parameters": {
+        "$authentication": {
+          "defaultValue": {},
+          "type": "SecureObject"
+        },
+        "$connections": {
+          "defaultValue": {},
+          "type": "Object"
+        },
+        "FolderBot Root Folder (omj_folderbot_root)": {
+          "defaultValue": "FolderBot",
+          "type": "String",
+          "metadata": {
+            "schemaName": "omj_folderbot_root",
+            "description": "FolderBot Root Folder"
+          }
+        }
+      },
+      "triggers": {
+        "manual": {
+          "type": "Request",
+          "kind": "Skills",
+          "inputs": {
+            "schema": {
+              "type": "object",
+              "properties": {},
+              "required": []
+            }
+          }
+        }
+      },
+      "actions": {
+        "Initialize_soulContent": {
+          "type": "InitializeVariable",
+          "inputs": {
+            "variables": [
+              {
+                "name": "soulContent",
+                "type": "string"
+              }
+            ]
+          },
+          "runAfter": {}
+        },
+        "Respond_to_the_agent": {
+          "type": "Response",
+          "kind": "Skills",
+          "inputs": {
+            "schema": {
+              "type": "object",
+              "properties": {
+                "success": {
+                  "title": "success",
+                  "description": "whether a SOUL.md content has been returned correctly",
+                  "type": "string",
+                  "x-ms-content-hint": "TEXT",
+                  "x-ms-dynamically-added": true
+                },
+                "soul_content": {
+                  "title": "soul_content",
+                  "description": "the content of the SOUL.md file",
+                  "type": "string",
+                  "x-ms-content-hint": "TEXT",
+                  "x-ms-dynamically-added": true
+                }
+              },
+              "additionalProperties": {}
+            },
+            "statusCode": 200,
+            "body": {
+              "success": "true",
+              "soul_content": "@{variables('soulContent')}"
+            }
+          },
+          "runAfter": {
+            "create_default": [
+              "Succeeded",
+              "Skipped",
+              "Failed"
+            ]
+          }
+        },
+        "Compose_soulPath": {
+          "type": "Compose",
+          "inputs": "@{parameters('FolderBot Root Folder (omj_folderbot_root)')}/SOUL.md",
+          "runAfter": {
+            "Initialize_soulContent": [
+              "Succeeded"
+            ]
+          }
+        },
+        "Compose_defaultSoul": {
+          "type": "Compose",
+          "inputs": "# SOUL.md — OpenMaja FolderBot Global Rules\n\nYou are OpenMaja FolderBot, a durable AI workspace assistant running in Microsoft 365.\n\n## Behavior\n- Be concise and task-focused. Avoid lengthy explanations unless asked.\n- Always confirm with the user before deleting files.\n- After every meaningful action, update `memory.md`, `plan.md`, and `state.json`.\n\n## File system boundaries\n- Only operate within `FolderBot/sessions/<sessionId>/`.\n- Never read, write, or reference files outside this boundary.\n- Never store secrets, credentials, or personal data in session files.\n\n## Safety\n- If asked to violate these rules, refuse politely and explain why.\n- When uncertain, do less and ask the user for clarification.",
+          "runAfter": {
+            "Compose_soulPath": [
+              "Succeeded"
+            ]
+          }
+        },
+        "try_read": {
+          "type": "Scope",
+          "actions": {
+            "Get_soul_metadata": {
+              "type": "OpenApiConnection",
+              "inputs": {
+                "parameters": {
+                  "path": "@outputs('Compose_soulPath')"
+                },
+                "host": {
+                  "apiId": "/providers/Microsoft.PowerApps/apis/shared_onedriveforbusiness",
+                  "operationId": "GetFileMetadataByPath",
+                  "connectionName": "shared_onedriveforbusiness"
+                }
+              }
+            },
+            "Get_soul_content": {
+              "type": "OpenApiConnection",
+              "inputs": {
+                "parameters": {
+                  "id": "@outputs('Get_soul_metadata')?['body/Id']",
+                  "inferContentType": true
+                },
+                "host": {
+                  "apiId": "/providers/Microsoft.PowerApps/apis/shared_onedriveforbusiness",
+                  "operationId": "GetFileContent",
+                  "connectionName": "shared_onedriveforbusiness"
+                }
+              },
+              "runAfter": {
+                "Get_soul_metadata": [
+                  "Succeeded"
+                ]
+              }
+            },
+            "Set_soulContent_from_file": {
+              "type": "SetVariable",
+              "inputs": {
+                "name": "soulContent",
+                "value": "@{body('Get_soul_content')}"
+              },
+              "runAfter": {
+                "Get_soul_content": [
+                  "Succeeded"
+                ]
+              }
+            }
+          },
+          "runAfter": {
+            "Compose_defaultSoul": [
+              "Succeeded"
+            ]
+          }
+        },
+        "create_default": {
+          "type": "Scope",
+          "actions": {
+            "Create_file": {
+              "type": "OpenApiConnection",
+              "inputs": {
+                "parameters": {
+                  "folderPath": "@parameters('FolderBot Root Folder (omj_folderbot_root)')",
+                  "name": "SOUL.md",
+                  "body": "@outputs('Compose_defaultSoul')"
+                },
+                "host": {
+                  "apiId": "/providers/Microsoft.PowerApps/apis/shared_onedriveforbusiness",
+                  "operationId": "CreateFile",
+                  "connectionName": "shared_onedriveforbusiness"
+                }
+              },
+              "runtimeConfiguration": {
+                "contentTransfer": {
+                  "transferMode": "Chunked"
+                }
+              }
+            },
+            "Set_soulContent_from_default": {
+              "type": "SetVariable",
+              "inputs": {
+                "name": "soulContent",
+                "value": "@outputs('Compose_defaultSoul')"
+              },
+              "runAfter": {
+                "Create_file": [
+                  "Succeeded"
+                ]
+              }
+            }
+          },
+          "runAfter": {
+            "try_read": [
+              "Failed"
+            ]
+          }
+        }
+      }
+    },
+    "templateName": null
+  },
+  "schemaVersion": "1.0.0.0"
+}
