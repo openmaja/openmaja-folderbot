@@ -3,8 +3,8 @@
 > **⚠️ Disclaimer:** This is a hobby project developed as a proof of concept. It is **not intended for production use**. Use it at your own risk. If you plan to deploy it in a corporate environment, always check with your IT department first to ensure it does not violate any company policy.
 
 
-**Goal:** build the eight Power Automate flows that give the Copilot Studio agent its file operations.  
-**Deliverables:** the eight working flows in your Power Platform environment · optional backup export of the `FolderBot` solution.
+**Goal:** build the nine Power Automate flows that give the Copilot Studio agent its file operations.  
+**Deliverables:** the nine working flows in your Power Platform environment · optional backup export of the `FolderBot` solution.
 
 At the end of this step the flow layer can create and resume sessions, read and write text files,
 list folder contents, and maintain `history.jsonl`. If you are following the manual path, the
@@ -634,6 +634,86 @@ to the agent can crowd out instructions, memory, and the current user request.
 
 ---
 
+### Flow 9 — GetSOUL
+
+**Purpose:** read `SOUL.md` from the FolderBot root folder and return its content as the active
+behavioral contract for SessionBot. If `SOUL.md` does not exist, create it with the default
+content and return that. This makes the system self-healing on first deploy — no manual setup
+step is required for `SOUL.md`.
+
+**Inputs:** *(none)*
+
+**Steps:**
+
+1. **Initialize variable** `soulContent`
+
+   | Field | Value |
+   |---|---|
+   | Name | `soulContent` |
+   | Type | `String` |
+   | Value | *(empty)* |
+
+2. **Compose** `soulPath`:
+   ```text
+   /@{parameters('xyz_folderbot_root')}/SOUL.md
+   ```
+
+3. **Compose** `defaultSoul` — paste the content of `agents/SOUL.md` verbatim as the value.
+   This is the fallback written to OneDrive if `SOUL.md` is missing:
+   ```text
+   # OpenMaja FolderBot — Global Rules
+   ...
+   ```
+   *(copy the full text from `agents/SOUL.md` in the repo)*
+
+4. **Scope** `try_read`
+
+   Inside the scope:
+   - **OneDrive for Business — Get file metadata using path**  
+     File path: output of `soulPath`  
+     *(rename the action to `Get_soul_metadata`)*
+   - **OneDrive for Business — Get file content using path**  
+     File path: output of `soulPath`  
+     *(rename the action to `Get_soul_content`)*
+   - **Set variable** `soulContent`  
+     Value: body of `Get_soul_content`
+
+5. **Scope** `create_default`
+
+   Configure **Run after** so this scope runs only if `try_read` has **failed**.
+
+   Inside the scope:
+   - **OneDrive for Business — Create file**  
+     Folder path: `/@{parameters('xyz_folderbot_root')}`  
+     File name: `SOUL.md`  
+     File content: output of `defaultSoul`
+   - **Set variable** `soulContent`  
+     Value: output of `defaultSoul`
+
+6. **Respond to the agent**
+
+   Place this after `create_default` and configure **Run after** so it runs when
+   `create_default` is either **successful** or **skipped**.
+
+   This covers both valid paths:
+   - `SOUL.md` found: `try_read` succeeds → `create_default` is skipped → respond runs
+   - `SOUL.md` missing: `try_read` fails → `create_default` succeeds → respond runs
+
+   Response body:
+
+   | Output | Value |
+   |---|---|
+   | `soul_content` | variable `soulContent` |
+
+   > **Why a shared variable instead of two Respond steps?** Both scopes write to `soulContent`
+   > before this step, so the single Respond action can safely reference the variable regardless
+   > of which path ran. This avoids duplicating the Respond action and keeps the flow's response
+   > contract in one place.
+
+**Output fields to define on trigger:** `soul_content` (Text).
+
+---
+
 ## Step 5 — Test each flow standalone
 
 Before connecting to Copilot Studio, test each flow using the **Test** button in Power Automate:
@@ -649,6 +729,8 @@ Minimum test matrix:
 - ReadTextFile → `history.jsonl` (verify the line was appended)
 - ListSessions → confirm the test session appears
 - DeleteFile → `outputs/hello.txt`
+- GetSOUL → run with `SOUL.md` present; verify `soul_content` is returned
+- GetSOUL → rename/delete `SOUL.md` in OneDrive, run again; verify the file is recreated with default content and returned
 
 ---
 

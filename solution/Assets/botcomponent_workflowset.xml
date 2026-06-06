@@ -17,6 +17,9 @@
   <botcomponent_workflow botcomponentid.schemaname="omj_OpenMajaFolderBotSessionBot.action.GetSessionSummary" workflowid.workflowid="19690c32-f055-f111-a825-7c1e5235b19f">
     <iscustomizable>1</iscustomizable>
   </botcomponent_workflow>
+  <botcomponent_workflow botcomponentid.schemaname="omj_OpenMajaFolderBotSessionBot.action.GetSOUL" workflowid.workflowid="0d7d2a8b-b061-f111-a826-7c1e5235b19f">
+    <iscustomizable>1</iscustomizable>
+  </botcomponent_workflow>
   <botcomponent_workflow botcomponentid.schemaname="omj_OpenMajaFolderBotSessionBot.action.ListSessionFiles" workflowid.workflowid="67269d82-f255-f111-a825-7c1e5235b19f">
     <iscustomizable>1</iscustomizable>
   </botcomponent_workflow>

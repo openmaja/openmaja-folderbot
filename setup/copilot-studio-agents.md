@@ -20,7 +20,7 @@ Orchestrator          ← /new, /resume, /help + routing
   │
   └── Connected agent: SessionBot
         │
-        └── Tools: ListSessionFiles, ReadTextFile, WriteTextFile,
+        └── Tools: GetSOUL, ListSessionFiles, ReadTextFile, WriteTextFile,
                    DeleteFile, AppendHistory, GetSessionSummary
 ```
 
@@ -42,8 +42,8 @@ The LLM reads the instructions and decides which tools to call.
 
 - Step 1 complete: `FolderBot/` exists in OneDrive and `FolderBot/SOUL.md` has been customized.
 - Step 2 complete via one of the supported paths:
-  - **Import path:** `FolderBotCore_0_1_0_0.zip` imported via [`setup/one-shot-import.md`](one-shot-import.md), all 8 flows active, and both agents (`OpenMaja FolderBot` and `OpenMaja FolderBot SessionBot`) appear under **Solutions → FolderBotCore → Chatbots**. The package is version `0.1.0.0` and uses publisher prefix `omj`.
-  - **Manual path:** all 8 flows built and tested via [`setup/power-automate-flows.md`](power-automate-flows.md). The flows exist, but the agents do not exist yet; create them in [Step 0](#step-0--ensure-the-agents-exist).
+  - **Import path:** `FolderBotCore_0_1_0_0.zip` imported via [`setup/one-shot-import.md`](one-shot-import.md), all 9 flows active, and both agents (`OpenMaja FolderBot` and `OpenMaja FolderBot SessionBot`) appear under **Solutions → FolderBotCore → Chatbots**. The package is version `0.1.0.0` and uses publisher prefix `omj`.
+  - **Manual path:** all 9 flows built and tested via [`setup/power-automate-flows.md`](power-automate-flows.md). The flows exist, but the agents do not exist yet; create them in [Step 0](#step-0--ensure-the-agents-exist).
 - Access to Copilot Studio at [copilotstudio.microsoft.com](https://copilotstudio.microsoft.com).
 - The Power Platform environment selected in Copilot Studio matches the one where the solution or manual flows live.
 
@@ -59,6 +59,7 @@ If you built the flows manually, create the agents before continuing:
 2. Create an agent named **OpenMaja FolderBot SessionBot**.
 3. Enable **Generative AI**, **Generative (preview)**, or **GPT** mode, depending on the label in your tenant.
 4. Add these flow actions to SessionBot:
+   - **GetSOUL** ← add this first; it is called at the start of every session
    - ListSessionFiles
    - ReadTextFile
    - WriteTextFile
@@ -74,7 +75,7 @@ If you built the flows manually, create the agents before continuing:
 8. Add **OpenMaja FolderBot SessionBot** as a connected agent/action for OpenMaja FolderBot.
 9. Save both agents.
 
-After this step, the manual path converges with the import path: both paths have two agents and the same eight flow actions available.
+After this step, the manual path converges with the import path: both paths have two agents and the same nine flow actions available.
 
 ---
 
@@ -86,9 +87,14 @@ If you used one-shot import, SessionBot comes pre-imported with working instruct
 2. Open **OpenMaja FolderBot SessionBot**.
 3. Go to **Settings** → **Generative AI** → confirm **Generative (preview)** or **GPT** mode is enabled.
 4. In **Instructions**, replace the existing content with the content of `agents/sessionbot-instructions.md`.
-5. Replace the `[SOUL.MD]` placeholder with the content of your customized `FolderBot/SOUL.md` from OneDrive. If you customized the local template instead, use `agents/SOUL.md`.
-6. Verify total character count is under **8,000**.
-7. Click **Save**.
+5. Verify total character count is under **8,000**.
+6. Click **Save**.
+
+> **Note — no `[SOUL.MD]` placeholder to replace.** SessionBot now loads `SOUL.md` at runtime
+> via the **GetSOUL** flow action (called automatically at the start of every `/new` and `/resume`
+> session). The instructions already contain the GetSOUL call directive — do not add static SOUL
+> content here. If `FolderBot/SOUL.md` does not exist in OneDrive, GetSOUL will create it
+> automatically with the default content from `agents/SOUL.md`.
 
 ---
 
@@ -126,10 +132,13 @@ service-account behavior.
 Before running end-to-end tests, verify SessionBot works in isolation:
 
 1. **Test** panel → set `session_id` context manually (paste a real session ID from your OneDrive).
-2. Type `/files` → verify it calls ListSessionFiles and formats the result.
-3. Type `/open memory.md` → verify it reads the file and displays it.
-4. Type `/write outputs/hello.txt` → when asked for content, type `Hello world` → verify the file appears in OneDrive.
-5. Type `/plan` → verify it reads and displays plan.md.
+2. Start the conversation — SessionBot should immediately call **GetSOUL** and load the behavioral rules. Confirm no error is returned and the agent responds normally.
+3. Type `/files` → verify it calls ListSessionFiles and formats the result.
+4. Type `/open memory.md` → verify it reads the file and displays it.
+5. Type `/write outputs/hello.txt` → when asked for content, type `Hello world` → verify the file appears in OneDrive.
+6. Type `/plan` → verify it reads and displays plan.md.
+
+To test the GetSOUL self-heal: temporarily rename `FolderBot/SOUL.md` in OneDrive, start a new test conversation, confirm GetSOUL recreates the file and the agent initialises normally.
 
 ---
 
@@ -249,12 +258,14 @@ intended `FolderBot/` workspace.
 Measured against the v0.1.0.0 exported package (`agents/orchestrator-instructions.md`,
 `agents/sessionbot-instructions.md`, and `agents/SOUL.md` as shipped):
 
-| Agent | Instructions (excl. SOUL.md) | SOUL.md | Total | Budget |
+| Agent | Instructions | SOUL.md injected | Total | Budget |
 |---|---|---|---|---|
-| Orchestrator | ~1,580 chars | ~880 chars | ~2,460 | 8,000 ✅ |
-| SessionBot | ~2,330 chars | ~880 chars | ~3,210 | 8,000 ✅ |
+| Orchestrator | ~1,580 chars | ~880 chars (static, at deploy time) | ~2,460 | 8,000 ✅ |
+| SessionBot | ~2,400 chars | none (loaded at runtime via GetSOUL) | ~2,400 | 8,000 ✅ |
 
-If you customize SOUL.md significantly, re-check total length before saving.
+SessionBot no longer embeds SOUL.md in its static instructions — it is loaded at runtime via GetSOUL. The Orchestrator still uses the static `[SOUL.MD]` inject pattern at deploy time.
+
+If you customize the Orchestrator's SOUL.md content significantly, re-check total length before saving.
 
 ---
 

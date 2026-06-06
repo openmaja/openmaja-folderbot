@@ -1,13 +1,13 @@
 kind: TaskDialog
-modelDescription: List all existing sessions
+modelDescription: Returns the SOUL.md files customized by the user.
 outputs:
   - propertyName: success
 
-  - propertyName: sessions
+  - propertyName: soul_content
 
 action:
   kind: InvokeFlowTaskAction
-  flowId: 6e9fb541-ed55-f111-a825-7c1e5235b19f
+  flowId: 0d7d2a8b-b061-f111-a826-7c1e5235b19f
   connectionProperties:
     $kind: ConnectionProperties
     diagnostics:
