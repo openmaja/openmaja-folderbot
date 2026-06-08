@@ -1,0 +1,77 @@
+name: ReadFileLines
+trigger: copilot_action
+description: >
+  Return a line range from a session file without injecting the full content into agent context.
+  The full file is downloaded (subject to the size cap) and sliced client-side in PA.
+  Returns the requested lines as a string plus the total line count, so the agent can
+  navigate a file without ever reading it in full.
+
+inputs:
+  session_id:
+    type: string
+    required: true
+  file_path:
+    type: string
+    required: true
+    description: "Session-relative path, e.g. outputs/report.md"
+  from_line:
+    type: integer
+    required: true
+    description: "First line to return (1-indexed, inclusive)"
+  to_line:
+    type: integer
+    required: true
+    description: "Last line to return (inclusive)"
+
+outputs:
+  success:     { type: boolean }
+  content:     { type: string,  description: "The requested lines joined by newline" }
+  total_lines: { type: integer, description: "Total line count of the full file" }
+  error:       { type: string }
+
+steps:
+  - id: full_path
+    action: compose
+    value: "/@{parameters('xyz_folderbot_root')}/sessions/@{inputs.session_id}/@{inputs.file_path}"
+
+  - id: get_metadata
+    action: onedrive.get_file_metadata_by_path
+    path: "@{full_path}"
+
+  - id: check_size
+    action: condition
+    if: "@greater(int(outputs('get_metadata')?['body/Size']), mul(int(parameters('xyz_folderbot_max_file_size_kb')), 1024))"
+    true:
+      - action: copilot.respond
+        body:
+          success: false
+          error: "File size exceeds the configured limit (@{parameters('xyz_folderbot_max_file_size_kb')} KB)."
+      - action: terminate
+
+  - id: read_content
+    action: onedrive.get_file_content_by_path
+    path: "@{full_path}"
+
+  - id: all_lines
+    action: compose
+    value: "@split(body('read_content'), decodeUriComponent('%0A'))"
+
+  - id: total_lines
+    action: compose
+    value: "@length(outputs('all_lines'))"
+
+  - id: sliced_lines
+    action: compose
+    # Skip (from_line - 1) lines, then take (to_line - from_line + 1) lines.
+    value: "@take(skip(outputs('all_lines'), sub(inputs.from_line, 1)), add(sub(inputs.to_line, inputs.from_line), 1))"
+
+  - id: content
+    action: compose
+    value: "@join(outputs('sliced_lines'), decodeUriComponent('%0A'))"
+
+  - id: respond
+    action: copilot.respond
+    body:
+      success: true
+      content: "@{outputs('content')}"
+      total_lines: "@{outputs('total_lines')}"

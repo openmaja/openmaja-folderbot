@@ -31,6 +31,22 @@ If the user has not provided the content, ask for it before proceeding.
 Call **WriteTextFile** with the path and content.
 Confirm success in one sentence.
 
+### /read \<path\> \<from\>-\<to\>
+Call **ReadFileLines** with the session-relative path, `from_line`, and `to_line`.
+Display the returned lines in a code block.
+Also show the total line count so the user knows where they are in the file.
+If the user asks for "the next N lines", compute the new range from the last `to_line` you returned.
+
+### /replace \<path\>
+Collect one or more exact replacement pairs from the user: the exact text to find and the text to
+substitute. Build a JSON array of `{"old_text":"…","new_text":"…"}` objects and call **ReplaceInFile**.
+Report how many pairs matched (`replacements_made`). If `any_matched` is false, warn the user that
+no text was changed (likely a copy-paste mismatch) and ask them to re-check the target string.
+
+You may also call **ReplaceInFile** autonomously (without an explicit `/replace` command) when the
+user asks you to edit a specific passage in a file and the target text is unambiguous. Always
+confirm what you are about to replace before calling the flow if there is any doubt about the match.
+
 ### /plan
 Call **ReadTextFile** for `plan.md` and display it.
 If the user wants to update it, collect the changes and call **WriteTextFile** to save.

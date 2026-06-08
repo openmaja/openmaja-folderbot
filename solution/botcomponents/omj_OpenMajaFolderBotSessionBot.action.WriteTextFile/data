@@ -1,5 +1,5 @@
 kind: TaskDialog
-modelDescription: Create or overwrite a text file
+modelDescription: "Purpose: create or overwrite a text file in the session folder."
 outputs:
   - propertyName: success
 

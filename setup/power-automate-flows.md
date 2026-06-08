@@ -3,11 +3,11 @@
 > **⚠️ Disclaimer:** This is a hobby project developed as a proof of concept. It is **not intended for production use**. Use it at your own risk. If you plan to deploy it in a corporate environment, always check with your IT department first to ensure it does not violate any company policy.
 
 
-**Goal:** build the nine Power Automate flows that give the Copilot Studio agent its file operations.  
-**Deliverables:** the nine working flows in your Power Platform environment · optional backup export of the `FolderBot` solution.
+**Goal:** build the eleven Power Automate flows that give the Copilot Studio agent its file operations.  
+**Deliverables:** the eleven working flows in your Power Platform environment · optional backup export of the `FolderBot` solution.
 
 At the end of this step the flow layer can create and resume sessions, read and write text files,
-list folder contents, and maintain `history.jsonl`. If you are following the manual path, the
+list folder contents, maintain `history.jsonl`, and perform scoped line reads and in-place replacements. If you are following the manual path, the
 Copilot Studio agents are created and wired in [`copilot-studio-agents.md`](copilot-studio-agents.md).
 
 ---
@@ -714,6 +714,174 @@ step is required for `SOUL.md`.
 
 ---
 
+### Flow 10 — ReadFileLines
+
+**Purpose:** return a line range from a session file without injecting the full content into agent
+context. The agent requests a specific window (e.g. lines 50–100) and also receives the total line
+count, so it can paginate through large files without ever loading them in full.
+
+**Inputs:**
+| Name | Type | Required | Description |
+|---|---|---|---|
+| `session_id` | Text | Yes | |
+| `file_path` | Text | Yes | Session-relative path, e.g. `outputs/report.md` |
+| `from_line` | Number | Yes | First line to return (1-indexed, inclusive) |
+| `to_line` | Number | Yes | Last line to return (inclusive) |
+
+**Steps:**
+
+1. **Compose** `fullPath`:
+   ```
+   /@{parameters('xyz_folderbot_root')}/sessions/@{triggerBody()?['session_id']}/@{triggerBody()?['file_path']}
+   ```
+
+2. **OneDrive for Business — Get file metadata using path** (path: output of `fullPath`).  
+   *(rename the action to `Get_file_metadata`)*
+
+3. **Condition** — size guard:
+   ```
+   @greater(int(outputs('Get_file_metadata')?['body/Size']), mul(int(parameters('xyz_folderbot_max_file_size_kb')), 1024))
+   ```
+   - **Yes (over limit):**
+     - **Respond to the agent** `{ "success": "false", "error": "File size exceeds the configured limit." }`
+     - **Terminate** (Succeeded)
+
+4. **OneDrive for Business — Get file content using path** (path: output of `fullPath`).  
+   *(rename the action to `Read_content`)*
+
+5. **Compose** `allLines`:
+   ```
+   @split(body('Read_content'), decodeUriComponent('%0A'))
+   ```
+
+6. **Compose** `totalLines`:
+   ```
+   @length(outputs('allLines'))
+   ```
+
+7. **Compose** `slicedLines`:
+   ```
+   @take(
+     skip(outputs('allLines'), sub(int(triggerBody()?['from_line']), 1)),
+     add(sub(int(triggerBody()?['to_line']), int(triggerBody()?['from_line'])), 1)
+   )
+   ```
+
+   > `skip(array, N)` discards the first N elements (converting 1-indexed to 0-indexed).
+   > `take(array, M)` keeps the next M elements. Together they slice an inclusive range.
+
+8. **Compose** `content`:
+   ```
+   @join(outputs('slicedLines'), decodeUriComponent('%0A'))
+   ```
+
+9. **Respond to the agent**:
+
+   | Output | Value |
+   |---|---|
+   | `success` | `true` |
+   | `content` | output of `content` |
+   | `total_lines` | output of `totalLines` |
+
+**Output fields to define on trigger:** `success` (Text), `content` (Text), `total_lines` (Text), `error` (Text).
+
+---
+
+### Flow 11 — ReplaceInFile
+
+**Purpose:** apply one or more exact-string replacements to a session file in-place. The agent
+provides an ordered list of `(old_text, new_text)` pairs; the flow reads the file, applies each
+replacement sequentially, and writes the result back. Returns the count of pairs that matched and
+a boolean `any_matched` flag.
+
+**Inputs:**
+| Name | Type | Required | Description |
+|---|---|---|---|
+| `session_id` | Text | Yes | |
+| `file_path` | Text | Yes | Session-relative path, e.g. `outputs/report.md` |
+| `replacements` | Text | Yes | JSON array string: `[{"old_text":"…","new_text":"…"}, …]` |
+
+> **Why Text for `replacements`?** Copilot Studio actions pass complex inputs as JSON strings.
+> The flow parses the value with `json()` before iterating. The agent must serialise the array
+> before calling the action.
+
+**Steps:**
+
+1. **Compose** `fullPath`:
+   ```
+   /@{parameters('xyz_folderbot_root')}/sessions/@{triggerBody()?['session_id']}/@{triggerBody()?['file_path']}
+   ```
+
+2. **OneDrive for Business — Get file metadata using path** (path: output of `fullPath`).  
+   *(rename the action to `Get_file_metadata`)*
+
+3. **Condition** — size guard (same expression as Flow 10 Step 3):
+   - **Yes (over limit):** Respond with error + Terminate.
+
+4. **OneDrive for Business — Get file content using path** (path: output of `fullPath`).  
+   *(rename the action to `Read_content`)*
+
+5. **Initialize variable** `currentContent`
+
+   | Field | Value |
+   |---|---|
+   | Name | `currentContent` |
+   | Type | `String` |
+   | Value | `@{body('Read_content')}` |
+
+6. **Initialize variable** `replacementsMade`
+
+   | Field | Value |
+   |---|---|
+   | Name | `replacementsMade` |
+   | Type | `Integer` |
+   | Value | `0` |
+
+7. **Apply to each** — iterate over `@json(triggerBody()?['replacements'])`.
+
+   Inside the loop:
+
+   a. **Condition** — old_text found?
+      ```
+      @contains(variables('currentContent'), items('Apply_to_each')['old_text'])
+      ```
+      - **Yes:**
+        - **Compose** `replacedContent`:
+          ```
+          @replace(variables('currentContent'), items('Apply_to_each')['old_text'], items('Apply_to_each')['new_text'])
+          ```
+        - **Set variable** `currentContent`:
+          ```
+          @outputs('replacedContent')
+          ```
+        - **Increment variable** `replacementsMade` by `1`
+
+   > **Why the intermediate Compose?** Power Automate does not allow a Set variable action to
+   > reference the same variable in its value expression (`WorkflowRunActionInputsInvalidProperty`
+   > — "Self reference is not supported"). The Compose step breaks the self-reference: it computes
+   > the new value independently, then Set variable reads the Compose output instead.
+
+   > `replace()` in Power Automate replaces all non-overlapping occurrences. If the agent needs
+   > to replace only the first occurrence, it must pass a narrower `old_text` that uniquely
+   > identifies that occurrence.
+
+8. **OneDrive for Business — Get file metadata using path** (path: output of `fullPath`).  
+   *(needed for the file ID used by Update file)*
+
+9. **OneDrive for Business — Update file** using the file ID from Step 8 and content from `currentContent`.
+
+10. **Respond to the agent**:
+
+    | Output | Value |
+    |---|---|
+    | `success` | `true` |
+    | `replacements_made` | `@{variables('replacementsMade')}` |
+    | `any_matched` | `@{greater(variables('replacementsMade'), 0)}` |
+
+**Output fields to define on trigger:** `success` (Text), `replacements_made` (Text), `any_matched` (Text), `error` (Text).
+
+---
+
 ## Step 5 — Test each flow standalone
 
 Before connecting to Copilot Studio, test each flow using the **Test** button in Power Automate:
@@ -731,6 +899,9 @@ Minimum test matrix:
 - DeleteFile → `outputs/hello.txt`
 - GetSOUL → run with `SOUL.md` present; verify `soul_content` is returned
 - GetSOUL → rename/delete `SOUL.md` in OneDrive, run again; verify the file is recreated with default content and returned
+- ReadFileLines → `memory.md`, `from_line=1`, `to_line=5`; verify `content` contains the first 5 lines and `total_lines` reflects the full file
+- ReplaceInFile → write a test file with known content, pass one replacement pair, verify the file is updated and `replacements_made=1`
+- ReplaceInFile → pass an `old_text` that does not exist; verify `any_matched=false` and file is unchanged
 
 ---
 

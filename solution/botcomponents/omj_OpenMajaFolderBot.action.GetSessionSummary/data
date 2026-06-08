@@ -1,5 +1,5 @@
 kind: TaskDialog
-modelDescription: Read state, memory, and plan for a session (for /resume)
+modelDescription: "Purpose: read state.json, memory.md, and plan.md in one call for /resume rehydration."
 outputs:
   - propertyName: success
 

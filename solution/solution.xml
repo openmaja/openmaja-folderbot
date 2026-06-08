@@ -1,4 +1,4 @@
-<ImportExportXml version="9.2.26051.150" SolutionPackageVersion="9.2" languagecode="1040" generatedBy="CrmLive" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" OrganizationVersion="9.2.26051.150" OrganizationSchemaType="Standard" CRMServerServiceabilityVersion="9.2.26052.00150">
+<ImportExportXml version="9.2.26052.150" SolutionPackageVersion="9.2" languagecode="1040" generatedBy="CrmLive" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" OrganizationVersion="9.2.26052.150" OrganizationSchemaType="Standard" CRMServerServiceabilityVersion="9.2.26052.00150">
   <SolutionManifest>
     <UniqueName>FolderBotCore</UniqueName>
     <LocalizedNames>
@@ -86,6 +86,8 @@
       <RootComponent type="29" id="{67269d82-f255-f111-a825-7c1e5235b19f}" behavior="0" />
       <RootComponent type="29" id="{6e9fb541-ed55-f111-a825-7c1e5235b19f}" behavior="0" />
       <RootComponent type="29" id="{8c24e212-9257-f111-a825-7c1e5235b19f}" behavior="0" />
+      <RootComponent type="29" id="{9502c837-4162-f111-a826-7c1e5235b19f}" behavior="0" />
+      <RootComponent type="29" id="{9602c837-4162-f111-a826-7c1e5235b19f}" behavior="0" />
       <RootComponent type="29" id="{a352c4b4-9457-f111-a825-7c1e5235b19f}" behavior="0" />
       <RootComponent type="29" id="{d42e22f0-ce55-f111-a825-7c1e5235b19f}" behavior="0" />
     </RootComponents>
