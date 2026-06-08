@@ -1,5 +1,5 @@
 kind: TaskDialog
-modelDescription: Returns the SOUL.md files customized by the user.
+modelDescription: "Purpose: read SOUL.md from the FolderBot root folder and return its content as the active behavioral contract for SessionBot. If SOUL.md does not exist, create it with the default content and return that. This makes the system self-healing on first deploy — no manual setup step is required for SOUL.md."
 outputs:
   - propertyName: success
 

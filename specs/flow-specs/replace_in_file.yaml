@@ -1,0 +1,104 @@
+name: ReplaceInFile
+trigger: copilot_action
+description: >
+  Apply one or more exact-string replacements to a session file in-place.
+  The agent provides a list of (old_text, new_text) pairs; the flow reads the file,
+  applies each replacement in order, and writes the result back.
+  Returns the number of replacements applied and a flag indicating whether any matched.
+
+inputs:
+  session_id:
+    type: string
+    required: true
+  file_path:
+    type: string
+    required: true
+    description: "Session-relative path, e.g. outputs/report.md"
+  replacements:
+    type: array
+    required: true
+    description: >
+      Ordered list of replacement pairs. Each item must have 'old_text' and 'new_text'.
+      Replacements are applied sequentially; later pairs see the output of earlier ones.
+    items:
+      type: object
+      properties:
+        old_text: { type: string }
+        new_text: { type: string }
+
+outputs:
+  success:            { type: boolean }
+  replacements_made:  { type: integer, description: "Number of pairs where old_text was found and replaced" }
+  any_matched:        { type: boolean, description: "True if at least one pair matched" }
+  error:              { type: string }
+
+steps:
+  - id: full_path
+    action: compose
+    value: "/@{parameters('xyz_folderbot_root')}/sessions/@{inputs.session_id}/@{inputs.file_path}"
+
+  - id: get_metadata
+    action: onedrive.get_file_metadata_by_path
+    path: "@{full_path}"
+
+  - id: check_size
+    action: condition
+    if: "@greater(int(outputs('get_metadata')?['body/Size']), mul(int(parameters('xyz_folderbot_max_file_size_kb')), 1024))"
+    true:
+      - action: copilot.respond
+        body:
+          success: false
+          error: "File size exceeds the configured limit (@{parameters('xyz_folderbot_max_file_size_kb')} KB)."
+      - action: terminate
+
+  - id: read_content
+    action: onedrive.get_file_content_by_path
+    path: "@{full_path}"
+
+  - id: init_content
+    action: initialize_variable
+    name: currentContent
+    type: string
+    value: "@{body('read_content')}"
+
+  - id: init_count
+    action: initialize_variable
+    name: replacementsMade
+    type: integer
+    value: 0
+
+  # Apply each replacement pair in order.
+  # For each pair: if old_text is found, replace all occurrences and increment counter.
+  - id: apply_replacements
+    action: apply_to_each
+    items: "@inputs('replacements')"
+    actions:
+      - id: check_match
+        action: condition
+        if: "@contains(variables('currentContent'), item()['old_text'])"
+        true:
+          - id: compute_replaced
+            action: compose
+            # PA does not allow a Set variable to reference itself (self-reference error).
+            # Compute the new value in an intermediate Compose, then assign from it.
+            value: "@replace(variables('currentContent'), item()['old_text'], item()['new_text'])"
+          - id: do_replace
+            action: set_variable
+            name: currentContent
+            value: "@outputs('compute_replaced')"
+          - id: increment_count
+            action: set_variable
+            name: replacementsMade
+            value: "@add(variables('replacementsMade'), 1)"
+
+  - id: write_back
+    action: onedrive.create_or_update_file_by_path
+    path: "@{full_path}"
+    content: "@variables('currentContent')"
+
+  - id: respond
+    action: copilot.respond
+    body:
+      success: true
+      replacements_made: "@{variables('replacementsMade')}"
+      any_matched: "@greater(variables('replacementsMade'), 0)"

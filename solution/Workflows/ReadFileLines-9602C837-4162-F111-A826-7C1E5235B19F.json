@@ -1,0 +1,301 @@
+{
+  "properties": {
+    "connectionReferences": {
+      "shared_onedriveforbusiness": {
+        "api": {
+          "name": "shared_onedriveforbusiness"
+        },
+        "connection": {
+          "connectionReferenceLogicalName": "omj_sharedonedriveforbusiness_2f22d"
+        },
+        "runtimeSource": "invoker"
+      }
+    },
+    "definition": {
+      "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+      "contentVersion": "undefined",
+      "parameters": {
+        "$authentication": {
+          "defaultValue": {},
+          "type": "SecureObject"
+        },
+        "$connections": {
+          "defaultValue": {},
+          "type": "Object"
+        },
+        "FolderBot Max File Size KB (omj_folderbot_max_file_size_kb)": {
+          "defaultValue": 500,
+          "type": "Int",
+          "metadata": {
+            "schemaName": "omj_folderbot_max_file_size_kb",
+            "description": "FolderBot Max File Size KB"
+          }
+        },
+        "FolderBot Root Folder (omj_folderbot_root)": {
+          "defaultValue": "FolderBot",
+          "type": "String",
+          "metadata": {
+            "schemaName": "omj_folderbot_root",
+            "description": "FolderBot Root Folder"
+          }
+        }
+      },
+      "triggers": {
+        "manual": {
+          "type": "Request",
+          "kind": "Skills",
+          "inputs": {
+            "schema": {
+              "type": "object",
+              "properties": {
+                "text": {
+                  "description": "the current session id",
+                  "title": "session_id",
+                  "type": "string",
+                  "x-ms-content-hint": "TEXT",
+                  "x-ms-dynamically-added": true
+                },
+                "text_1": {
+                  "description": "Session-relative path, e.g. outputs/report.md",
+                  "title": "file_path",
+                  "type": "string",
+                  "x-ms-content-hint": "TEXT",
+                  "x-ms-dynamically-added": true
+                },
+                "number": {
+                  "description": "First line to return (1-indexed, inclusive)",
+                  "title": "from_line",
+                  "type": "number",
+                  "x-ms-content-hint": "NUMBER",
+                  "x-ms-dynamically-added": true
+                },
+                "number_1": {
+                  "description": "Last line to return (inclusive)",
+                  "title": "to_line",
+                  "type": "number",
+                  "x-ms-content-hint": "NUMBER",
+                  "x-ms-dynamically-added": true
+                }
+              },
+              "required": [
+                "text",
+                "text_1",
+                "number",
+                "number_1"
+              ]
+            }
+          }
+        }
+      },
+      "actions": {
+        "Compose_fullPath": {
+          "type": "Compose",
+          "inputs": "@{parameters('FolderBot Root Folder (omj_folderbot_root)')}/sessions/@{triggerBody()?['text']}/@{triggerBody()?['text_1']}",
+          "runAfter": {}
+        },
+        "Get_file_metadata_using_path": {
+          "type": "OpenApiConnection",
+          "inputs": {
+            "parameters": {
+              "path": "@outputs('Compose_fullPath')"
+            },
+            "host": {
+              "apiId": "/providers/Microsoft.PowerApps/apis/shared_onedriveforbusiness",
+              "operationId": "GetFileMetadataByPath",
+              "connectionName": "shared_onedriveforbusiness"
+            }
+          },
+          "runAfter": {
+            "Compose_fullPath": [
+              "Succeeded"
+            ]
+          }
+        },
+        "Condition_size_guard": {
+          "type": "If",
+          "expression": {
+            "and": [
+              {
+                "greater": [
+                  "@int(outputs('Get_file_metadata_using_path')?['body/Size'])",
+                  "@mul(parameters('FolderBot Max File Size KB (omj_folderbot_max_file_size_kb)'),1024)"
+                ]
+              }
+            ]
+          },
+          "actions": {
+            "Respond_to_the_agent": {
+              "type": "Response",
+              "kind": "Skills",
+              "inputs": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "title": "success",
+                      "description": "whether the flow was executed without errors",
+                      "type": "string",
+                      "x-ms-content-hint": "TEXT",
+                      "x-ms-dynamically-added": true
+                    },
+                    "error": {
+                      "title": "error",
+                      "description": "the error message",
+                      "type": "string",
+                      "x-ms-content-hint": "TEXT",
+                      "x-ms-dynamically-added": true
+                    },
+                    "content": {
+                      "title": "content",
+                      "description": "output of content",
+                      "type": "string",
+                      "x-ms-content-hint": "TEXT",
+                      "x-ms-dynamically-added": true
+                    },
+                    "total_lines": {
+                      "title": "total_lines",
+                      "description": "total_lines count",
+                      "type": "number",
+                      "x-ms-content-hint": "NUMBER",
+                      "x-ms-dynamically-added": true
+                    }
+                  },
+                  "additionalProperties": {}
+                },
+                "statusCode": 200,
+                "body": {
+                  "success": "false",
+                  "error": "File size exceeds the configured limit.",
+                  "total_lines": 0
+                }
+              }
+            },
+            "Terminate": {
+              "type": "Terminate",
+              "inputs": {
+                "runStatus": "Succeeded"
+              },
+              "runAfter": {
+                "Respond_to_the_agent": [
+                  "Succeeded"
+                ]
+              }
+            }
+          },
+          "else": {
+            "actions": {
+              "Read_content": {
+                "type": "OpenApiConnection",
+                "inputs": {
+                  "parameters": {
+                    "id": "@outputs('Get_file_metadata_using_path')?['body/Id']",
+                    "inferContentType": true
+                  },
+                  "host": {
+                    "apiId": "/providers/Microsoft.PowerApps/apis/shared_onedriveforbusiness",
+                    "operationId": "GetFileContent",
+                    "connectionName": "shared_onedriveforbusiness"
+                  }
+                }
+              },
+              "Compose_allLines": {
+                "type": "Compose",
+                "inputs": "@split(body('Read_content'), decodeUriComponent('%0A'))\r\n",
+                "runAfter": {
+                  "Read_content": [
+                    "Succeeded"
+                  ]
+                }
+              },
+              "Compose_totalLines": {
+                "type": "Compose",
+                "inputs": "@length(outputs('Compose_allLines'))",
+                "runAfter": {
+                  "Compose_allLines": [
+                    "Succeeded"
+                  ]
+                }
+              },
+              "Compose_slicedLines": {
+                "type": "Compose",
+                "inputs": "@take(skip(outputs('Compose_allLines'),sub(int(triggerBody()?['number']),1)),add(sub(int(triggerBody()?['number_1']),int(triggerBody()?['number'])),1))",
+                "runAfter": {
+                  "Compose_totalLines": [
+                    "Succeeded"
+                  ]
+                }
+              },
+              "Compose_content": {
+                "type": "Compose",
+                "inputs": "@join(outputs('Compose_slicedLines'), decodeUriComponent('%0A'))\r\n",
+                "runAfter": {
+                  "Compose_slicedLines": [
+                    "Succeeded"
+                  ]
+                }
+              },
+              "Respond_to_the_agent_1": {
+                "type": "Response",
+                "kind": "Skills",
+                "inputs": {
+                  "schema": {
+                    "type": "object",
+                    "properties": {
+                      "success": {
+                        "title": "success",
+                        "description": "whether the flow was executed without errors",
+                        "type": "string",
+                        "x-ms-content-hint": "TEXT",
+                        "x-ms-dynamically-added": true
+                      },
+                      "content": {
+                        "title": "content",
+                        "description": "output of content",
+                        "type": "string",
+                        "x-ms-content-hint": "TEXT",
+                        "x-ms-dynamically-added": true
+                      },
+                      "total_lines": {
+                        "title": "total_lines",
+                        "description": "total_lines count",
+                        "type": "number",
+                        "x-ms-content-hint": "NUMBER",
+                        "x-ms-dynamically-added": true
+                      },
+                      "error": {
+                        "title": "error",
+                        "description": "the error message",
+                        "type": "string",
+                        "x-ms-content-hint": "TEXT",
+                        "x-ms-dynamically-added": true
+                      }
+                    },
+                    "additionalProperties": {}
+                  },
+                  "statusCode": 200,
+                  "body": {
+                    "success": "true",
+                    "content": "@{outputs('Compose_content')}",
+                    "total_lines": "@int(outputs('Compose_totalLines'))"
+                  }
+                },
+                "runAfter": {
+                  "Compose_content": [
+                    "Succeeded"
+                  ]
+                }
+              }
+            }
+          },
+          "runAfter": {
+            "Get_file_metadata_using_path": [
+              "Succeeded"
+            ]
+          }
+        }
+      }
+    },
+    "templateName": null
+  },
+  "schemaVersion": "1.0.0.0"
+}

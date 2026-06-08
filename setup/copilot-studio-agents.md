@@ -21,7 +21,8 @@ Orchestrator          ← /new, /resume, /help + routing
   └── Connected agent: SessionBot
         │
         └── Tools: GetSOUL, ListSessionFiles, ReadTextFile, WriteTextFile,
-                   DeleteFile, AppendHistory, GetSessionSummary
+                   DeleteFile, AppendHistory, GetSessionSummary,
+                   ReadFileLines, ReplaceInFile
 ```
 
 Both agents run in **Generative AI (GPT) mode** — no manual topic authoring required.
@@ -42,8 +43,8 @@ The LLM reads the instructions and decides which tools to call.
 
 - Step 1 complete: `FolderBot/` exists in OneDrive and `FolderBot/SOUL.md` has been customized.
 - Step 2 complete via one of the supported paths:
-  - **Import path:** `FolderBotCore_0_1_0_0.zip` imported via [`setup/one-shot-import.md`](one-shot-import.md), all 9 flows active, and both agents (`OpenMaja FolderBot` and `OpenMaja FolderBot SessionBot`) appear under **Solutions → FolderBotCore → Chatbots**. The package is version `0.1.0.0` and uses publisher prefix `omj`.
-  - **Manual path:** all 9 flows built and tested via [`setup/power-automate-flows.md`](power-automate-flows.md). The flows exist, but the agents do not exist yet; create them in [Step 0](#step-0--ensure-the-agents-exist).
+  - **Import path:** `FolderBotCore_0_1_0_0.zip` imported via [`setup/one-shot-import.md`](one-shot-import.md), all 11 flows active, and both agents (`OpenMaja FolderBot` and `OpenMaja FolderBot SessionBot`) appear under **Solutions → FolderBotCore → Chatbots**. The package is version `0.1.0.0` and uses publisher prefix `omj`.
+  - **Manual path:** all 11 flows built and tested via [`setup/power-automate-flows.md`](power-automate-flows.md). The flows exist, but the agents do not exist yet; create them in [Step 0](#step-0--ensure-the-agents-exist).
 - Access to Copilot Studio at [copilotstudio.microsoft.com](https://copilotstudio.microsoft.com).
 - The Power Platform environment selected in Copilot Studio matches the one where the solution or manual flows live.
 
@@ -66,6 +67,8 @@ If you built the flows manually, create the agents before continuing:
    - DeleteFile
    - AppendHistory
    - GetSessionSummary
+   - ReadFileLines
+   - ReplaceInFile
 5. Create an agent named **OpenMaja FolderBot**.
 6. Enable GPT/generative mode.
 7. Add these flow actions to OpenMaja FolderBot:
@@ -137,6 +140,8 @@ Before running end-to-end tests, verify SessionBot works in isolation:
 4. Type `/open memory.md` → verify it reads the file and displays it.
 5. Type `/write outputs/hello.txt` → when asked for content, type `Hello world` → verify the file appears in OneDrive.
 6. Type `/plan` → verify it reads and displays plan.md.
+7. Ask the agent to read lines 1–5 of `memory.md` → verify it calls **ReadFileLines** and returns only those lines plus the total line count.
+8. Ask the agent to replace a known phrase in `outputs/hello.txt` with something else → verify it calls **ReplaceInFile**, the file is updated in OneDrive, and the response reports `any_matched: true`.
 
 To test the GetSOUL self-heal: temporarily rename `FolderBot/SOUL.md` in OneDrive, start a new test conversation, confirm GetSOUL recreates the file and the agent initialises normally.
 
@@ -255,7 +260,7 @@ intended `FolderBot/` workspace.
 
 ## Instruction budget reference
 
-Measured against the v0.1.0.0 exported package (`agents/orchestrator-instructions.md`,
+Measured against the v0.1.1.0 exported package (`agents/orchestrator-instructions.md`,
 `agents/sessionbot-instructions.md`, and `agents/SOUL.md` as shipped):
 
 | Agent | Instructions | SOUL.md injected | Total | Budget |
@@ -266,6 +271,10 @@ Measured against the v0.1.0.0 exported package (`agents/orchestrator-instruction
 SessionBot no longer embeds SOUL.md in its static instructions — it is loaded at runtime via GetSOUL. The Orchestrator still uses the static `[SOUL.MD]` inject pattern at deploy time.
 
 If you customize the Orchestrator's SOUL.md content significantly, re-check total length before saving.
+
+> **Note — ReadFileLines and ReplaceInFile:** these flows add no text to agent instructions.
+> They are exposed as actions and the agent discovers their inputs/outputs from the action schema
+> at runtime. No instruction budget impact.
 
 ---
 

@@ -6,7 +6,7 @@ inputs:
   - kind: AutomaticTaskInput
     propertyName: session_id
 
-modelDescription: List files in the session root folder or a subfolder.
+modelDescription: "Purpose: list files in a session folder (or a subfolder within it)."
 outputs:
   - propertyName: success
 

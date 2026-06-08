@@ -1,0 +1,20 @@
+kind: TaskDialog
+modelDescription: "Purpose: apply one or more exact-string replacements to a session file in-place. The agent provides an ordered list of (old_text, new_text) pairs; the flow reads the file, applies each replacement sequentially, and writes the result back. Returns the count of pairs that matched and a boolean any_matched flag."
+outputs:
+  - propertyName: success
+
+  - propertyName: error
+
+  - propertyName: replacements_made
+
+  - propertyName: any_matched
+
+action:
+  kind: InvokeFlowTaskAction
+  flowId: 9502c837-4162-f111-a826-7c1e5235b19f
+  connectionProperties:
+    $kind: ConnectionProperties
+    diagnostics:
+    mode: Invoker
+
+outputMode: All
