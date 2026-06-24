@@ -1,0 +1,6 @@
+{
+  "enabled": true,
+  "allowed_origins": [
+    "https://httpbin.org"
+  ]
+}

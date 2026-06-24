@@ -280,8 +280,18 @@ If you customize the Orchestrator's SOUL.md content significantly, re-check tota
 
 ## What's next
 
-With the agents built and passing the end-to-end tests, the setup is complete.
+With the agents built and passing the end-to-end tests, the core setup is complete.
 
-To validate the full system end-to-end, run the Core test playbooks.
+To validate the full system end-to-end, run the Core test playbooks in [`tests/`](../tests/).
 
-Follow the test playbooks in [`tests/`](../tests/).
+---
+
+## Optional — Step 4: FolderBot Runner
+
+The FolderBot Runner adds a browser-based local execution layer that unlocks capabilities
+beyond what Power Automate flows can do natively: complex file transformations, third-party
+API calls, and custom user-defined JavaScript tools.
+
+**This step is entirely optional.** All core FolderBot operations work without it.
+
+If you want to enable the runner, follow [`setup/runner-setup.md`](runner-setup.md).
