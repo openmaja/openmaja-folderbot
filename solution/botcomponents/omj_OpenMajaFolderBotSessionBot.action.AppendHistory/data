@@ -1,5 +1,5 @@
 kind: TaskDialog
-modelDescription: Append a conversation turn to history.jsonl
+modelDescription: "Purpose: append one or two entries (user + assistant) to history.jsonl."
 outputs:
   - propertyName: success
 
@@ -9,6 +9,6 @@ action:
   connectionProperties:
     $kind: ConnectionProperties
     diagnostics:
-    mode: Maker
+    mode: Invoker
 
 outputMode: All

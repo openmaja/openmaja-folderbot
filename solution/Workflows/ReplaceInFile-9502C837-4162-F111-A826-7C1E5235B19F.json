@@ -1,0 +1,384 @@
+{
+  "properties": {
+    "connectionReferences": {
+      "shared_onedriveforbusiness": {
+        "api": {
+          "name": "shared_onedriveforbusiness"
+        },
+        "connection": {
+          "connectionReferenceLogicalName": "omj_sharedonedriveforbusiness_2f22d"
+        },
+        "runtimeSource": "invoker"
+      }
+    },
+    "definition": {
+      "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+      "contentVersion": "undefined",
+      "parameters": {
+        "$authentication": {
+          "defaultValue": {},
+          "type": "SecureObject"
+        },
+        "$connections": {
+          "defaultValue": {},
+          "type": "Object"
+        },
+        "FolderBot Max File Size KB (omj_folderbot_max_file_size_kb)": {
+          "defaultValue": 500,
+          "type": "Int",
+          "metadata": {
+            "schemaName": "omj_folderbot_max_file_size_kb",
+            "description": "FolderBot Max File Size KB"
+          }
+        },
+        "FolderBot Root Folder (omj_folderbot_root)": {
+          "defaultValue": "FolderBot",
+          "type": "String",
+          "metadata": {
+            "schemaName": "omj_folderbot_root",
+            "description": "FolderBot Root Folder"
+          }
+        }
+      },
+      "triggers": {
+        "manual": {
+          "type": "Request",
+          "kind": "Skills",
+          "inputs": {
+            "schema": {
+              "type": "object",
+              "properties": {
+                "text": {
+                  "description": "the id of the current session",
+                  "title": "session_id",
+                  "type": "string",
+                  "x-ms-content-hint": "TEXT",
+                  "x-ms-dynamically-added": true
+                },
+                "text_1": {
+                  "description": "Session-relative path, e.g. outputs/report.md",
+                  "title": "file_path",
+                  "type": "string",
+                  "x-ms-content-hint": "TEXT",
+                  "x-ms-dynamically-added": true
+                },
+                "text_2": {
+                  "description": "JSON array string: [{\"old_text\":\"…\",\"new_text\":\"…\"}, …]",
+                  "title": "replacements",
+                  "type": "string",
+                  "x-ms-content-hint": "TEXT",
+                  "x-ms-dynamically-added": true
+                }
+              },
+              "required": [
+                "text",
+                "text_1",
+                "text_2"
+              ]
+            }
+          }
+        }
+      },
+      "actions": {
+        "Compose_fullPath": {
+          "type": "Compose",
+          "inputs": "@{parameters('FolderBot Root Folder (omj_folderbot_root)')}/sessions/@{triggerBody()?['text']}/@{triggerBody()?['text_1']} ",
+          "runAfter": {
+            "Initialize_variable_replacementsMade": [
+              "SUCCEEDED"
+            ]
+          }
+        },
+        "Get_file_metadata_using_path": {
+          "type": "OpenApiConnection",
+          "inputs": {
+            "parameters": {
+              "path": "@outputs('Compose_fullPath')"
+            },
+            "host": {
+              "apiId": "/providers/Microsoft.PowerApps/apis/shared_onedriveforbusiness",
+              "operationId": "GetFileMetadataByPath",
+              "connectionName": "shared_onedriveforbusiness"
+            }
+          },
+          "runAfter": {
+            "Compose_fullPath": [
+              "Succeeded"
+            ]
+          }
+        },
+        "Condition_size_guard": {
+          "type": "If",
+          "expression": {
+            "and": [
+              {
+                "greater": [
+                  "@int(outputs('Get_file_metadata_using_path')?['body/Size'])",
+                  "@mul(parameters('FolderBot Max File Size KB (omj_folderbot_max_file_size_kb)'),1024)"
+                ]
+              }
+            ]
+          },
+          "actions": {
+            "Terminate": {
+              "type": "Terminate",
+              "inputs": {
+                "runStatus": "Succeeded"
+              },
+              "runAfter": {
+                "Respond_to_the_agent_FAIL": [
+                  "Succeeded"
+                ]
+              }
+            },
+            "Respond_to_the_agent_FAIL": {
+              "type": "Response",
+              "kind": "Skills",
+              "inputs": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "title": "success",
+                      "description": "whether the flow was executed without errors",
+                      "type": "string",
+                      "x-ms-content-hint": "TEXT",
+                      "x-ms-dynamically-added": true
+                    },
+                    "error": {
+                      "title": "error",
+                      "description": "the error message",
+                      "type": "string",
+                      "x-ms-content-hint": "TEXT",
+                      "x-ms-dynamically-added": true
+                    },
+                    "replacements_made": {
+                      "title": "replacements_made",
+                      "description": "number of occurrences replaced",
+                      "type": "number",
+                      "x-ms-content-hint": "NUMBER",
+                      "x-ms-dynamically-added": true
+                    },
+                    "any_matched": {
+                      "title": "any_matched",
+                      "description": "",
+                      "type": "boolean",
+                      "x-ms-content-hint": "BOOLEAN",
+                      "x-ms-dynamically-added": true
+                    }
+                  },
+                  "additionalProperties": {}
+                },
+                "statusCode": 200,
+                "body": {
+                  "success": "false",
+                  "error": "File size exceeds the configured limit.",
+                  "replacements_made": 0,
+                  "any_matched": false
+                }
+              }
+            }
+          },
+          "else": {
+            "actions": {
+              "Read_content": {
+                "type": "OpenApiConnection",
+                "inputs": {
+                  "parameters": {
+                    "id": "@outputs('Get_file_metadata_using_path')?['body/Id']",
+                    "inferContentType": true
+                  },
+                  "host": {
+                    "apiId": "/providers/Microsoft.PowerApps/apis/shared_onedriveforbusiness",
+                    "operationId": "GetFileContent",
+                    "connectionName": "shared_onedriveforbusiness"
+                  }
+                }
+              },
+              "Apply_to_each": {
+                "type": "Foreach",
+                "foreach": "@json(triggerBody()?['text_2'])",
+                "actions": {
+                  "old_text_found_": {
+                    "type": "If",
+                    "expression": {
+                      "and": [
+                        {
+                          "contains": [
+                            "@variables('currentContent')",
+                            "@items('Apply_to_each')['old_text']"
+                          ]
+                        }
+                      ]
+                    },
+                    "actions": {
+                      "Set_variable_replacing_text": {
+                        "type": "SetVariable",
+                        "inputs": {
+                          "name": "currentContent",
+                          "value": "@outputs('Compose')"
+                        },
+                        "runAfter": {
+                          "Compose": [
+                            "SUCCEEDED"
+                          ]
+                        }
+                      },
+                      "Increment_variable": {
+                        "type": "IncrementVariable",
+                        "inputs": {
+                          "name": "replacementsMade",
+                          "value": 1
+                        },
+                        "runAfter": {
+                          "Set_variable_replacing_text": [
+                            "SUCCEEDED"
+                          ]
+                        }
+                      },
+                      "Compose": {
+                        "type": "Compose",
+                        "inputs": "@replace(variables('currentContent'),items('Apply_to_each')['old_text'],items('Apply_to_each')['new_text'])"
+                      }
+                    },
+                    "else": {
+                      "actions": {}
+                    }
+                  }
+                },
+                "runAfter": {
+                  "Set_variable_currentContent": [
+                    "Succeeded"
+                  ]
+                }
+              },
+              "Set_variable_currentContent": {
+                "type": "SetVariable",
+                "inputs": {
+                  "name": "currentContent",
+                  "value": "@{body('Read_content')}"
+                },
+                "runAfter": {
+                  "Read_content": [
+                    "Succeeded"
+                  ]
+                }
+              },
+              "Update_file": {
+                "type": "OpenApiConnection",
+                "inputs": {
+                  "parameters": {
+                    "id": "@outputs('Get_file_metadata_using_path')?['body/Id']",
+                    "body": "@variables('currentContent')"
+                  },
+                  "host": {
+                    "apiId": "/providers/Microsoft.PowerApps/apis/shared_onedriveforbusiness",
+                    "operationId": "UpdateFile",
+                    "connectionName": "shared_onedriveforbusiness"
+                  }
+                },
+                "runAfter": {
+                  "Apply_to_each": [
+                    "SUCCEEDED"
+                  ]
+                },
+                "runtimeConfiguration": {
+                  "contentTransfer": {
+                    "transferMode": "Chunked"
+                  }
+                }
+              }
+            }
+          },
+          "runAfter": {
+            "Get_file_metadata_using_path": [
+              "Succeeded"
+            ]
+          }
+        },
+        "Respond_to_the_agent_SUCCESS": {
+          "type": "Response",
+          "kind": "Skills",
+          "inputs": {
+            "schema": {
+              "type": "object",
+              "properties": {
+                "success": {
+                  "title": "success",
+                  "description": "whether the flow was executed without errors",
+                  "type": "string",
+                  "x-ms-content-hint": "TEXT",
+                  "x-ms-dynamically-added": true
+                },
+                "error": {
+                  "title": "error",
+                  "description": "the error message",
+                  "type": "string",
+                  "x-ms-content-hint": "TEXT",
+                  "x-ms-dynamically-added": true
+                },
+                "replacements_made": {
+                  "title": "replacements_made",
+                  "description": "number of occurrences replaced",
+                  "type": "number",
+                  "x-ms-content-hint": "NUMBER",
+                  "x-ms-dynamically-added": true
+                },
+                "any_matched": {
+                  "title": "any_matched",
+                  "description": "",
+                  "type": "boolean",
+                  "x-ms-content-hint": "BOOLEAN",
+                  "x-ms-dynamically-added": true
+                }
+              },
+              "additionalProperties": {}
+            },
+            "statusCode": 200,
+            "body": {
+              "success": "true",
+              "replacements_made": "@variables('replacementsMade')",
+              "any_matched": "@greater(variables('replacementsMade'),0)"
+            }
+          },
+          "runAfter": {
+            "Condition_size_guard": [
+              "Succeeded"
+            ]
+          }
+        },
+        "Initialize_variable_currentContent": {
+          "type": "InitializeVariable",
+          "inputs": {
+            "variables": [
+              {
+                "name": "currentContent",
+                "type": "string"
+              }
+            ]
+          },
+          "runAfter": {}
+        },
+        "Initialize_variable_replacementsMade": {
+          "type": "InitializeVariable",
+          "inputs": {
+            "variables": [
+              {
+                "name": "replacementsMade",
+                "type": "integer",
+                "value": 0
+              }
+            ]
+          },
+          "runAfter": {
+            "Initialize_variable_currentContent": [
+              "Succeeded"
+            ]
+          }
+        }
+      }
+    },
+    "templateName": null
+  },
+  "schemaVersion": "1.0.0.0"
+}

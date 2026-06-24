@@ -1,5 +1,5 @@
 kind: TaskDialog
-modelDescription: Create a new session workspace with all initial files
+modelDescription: "Purpose: create a new session workspace with all initial files."
 outputs:
   - propertyName: success
 
@@ -15,6 +15,6 @@ action:
   connectionProperties:
     $kind: ConnectionProperties
     diagnostics:
-    mode: Maker
+    mode: Invoker
 
 outputMode: All

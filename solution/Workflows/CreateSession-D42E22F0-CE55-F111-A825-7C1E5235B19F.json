@@ -69,61 +69,6 @@
           },
           "runAfter": {}
         },
-        "Respond_to_the_agent": {
-          "type": "Response",
-          "kind": "Skills",
-          "inputs": {
-            "schema": {
-              "type": "object",
-              "properties": {
-                "success": {
-                  "title": "success",
-                  "description": "whether the session was created successfully",
-                  "type": "string",
-                  "x-ms-content-hint": "TEXT",
-                  "x-ms-dynamically-added": true
-                },
-                "session_id": {
-                  "title": "session_id",
-                  "description": "the session id",
-                  "type": "string",
-                  "x-ms-content-hint": "TEXT",
-                  "x-ms-dynamically-added": true
-                },
-                "created_at": {
-                  "title": "created_at",
-                  "description": "creation time",
-                  "type": "string",
-                  "x-ms-content-hint": "TEXT",
-                  "x-ms-dynamically-added": true
-                },
-                "folder_path": {
-                  "title": "folder_path",
-                  "description": "the created folder path",
-                  "type": "string",
-                  "x-ms-content-hint": "TEXT",
-                  "x-ms-dynamically-added": true
-                }
-              },
-              "additionalProperties": {}
-            },
-            "statusCode": 200,
-            "body": {
-              "success": "true",
-              "session_id": "@{triggerBody()?['session_id']}",
-              "created_at": "@{utcNow()}",
-              "folder_path": "@{substring(outputs('Get_file_metadata')?['body/Path'],0,lastIndexOf(outputs('Get_file_metadata')?['body/Path'], '/'))}"
-            }
-          },
-          "runAfter": {
-            "Get_file_metadata": [
-              "Succeeded",
-              "TIMEDOUT",
-              "SKIPPED",
-              "FAILED"
-            ]
-          }
-        },
         "Compose": {
           "type": "Compose",
           "inputs": {
@@ -332,6 +277,112 @@
             "contentTransfer": {
               "transferMode": "Chunked"
             }
+          }
+        },
+        "Respond_to_the_agent_fail": {
+          "type": "Response",
+          "kind": "Skills",
+          "inputs": {
+            "schema": {
+              "type": "object",
+              "properties": {
+                "success": {
+                  "title": "success",
+                  "description": "whether the session was created successfully",
+                  "type": "string",
+                  "x-ms-content-hint": "TEXT",
+                  "x-ms-dynamically-added": true
+                },
+                "session_id": {
+                  "title": "session_id",
+                  "description": "the session id",
+                  "type": "string",
+                  "x-ms-content-hint": "TEXT",
+                  "x-ms-dynamically-added": true
+                },
+                "created_at": {
+                  "title": "created_at",
+                  "description": "creation time",
+                  "type": "string",
+                  "x-ms-content-hint": "TEXT",
+                  "x-ms-dynamically-added": true
+                },
+                "folder_path": {
+                  "title": "folder_path",
+                  "description": "the created folder path",
+                  "type": "string",
+                  "x-ms-content-hint": "TEXT",
+                  "x-ms-dynamically-added": true
+                }
+              },
+              "additionalProperties": {}
+            },
+            "statusCode": 200,
+            "body": {
+              "success": "false",
+              "session_id": "@{triggerBody()?['session_id']}",
+              "created_at": "@{utcNow()}",
+              "folder_path": "@{substring(outputs('Get_file_metadata')?['body/Path'],0,lastIndexOf(outputs('Get_file_metadata')?['body/Path'], '/'))}"
+            }
+          },
+          "runAfter": {
+            "Get_file_metadata": [
+              "TIMEDOUT",
+              "SKIPPED",
+              "FAILED"
+            ]
+          }
+        },
+        "Respond_to_the_agent_success": {
+          "type": "Response",
+          "kind": "Skills",
+          "inputs": {
+            "schema": {
+              "type": "object",
+              "properties": {
+                "success": {
+                  "title": "success",
+                  "description": "whether the session was created successfully",
+                  "type": "string",
+                  "x-ms-content-hint": "TEXT",
+                  "x-ms-dynamically-added": true
+                },
+                "session_id": {
+                  "title": "session_id",
+                  "description": "the session id",
+                  "type": "string",
+                  "x-ms-content-hint": "TEXT",
+                  "x-ms-dynamically-added": true
+                },
+                "created_at": {
+                  "title": "created_at",
+                  "description": "creation time",
+                  "type": "string",
+                  "x-ms-content-hint": "TEXT",
+                  "x-ms-dynamically-added": true
+                },
+                "folder_path": {
+                  "title": "folder_path",
+                  "description": "the created folder path",
+                  "type": "string",
+                  "x-ms-content-hint": "TEXT",
+                  "x-ms-dynamically-added": true
+                }
+              },
+              "additionalProperties": {}
+            },
+            "statusCode": 200,
+            "body": {
+              "success": "true",
+              "session_id": "@{triggerBody()?['session_id']}",
+              "created_at": "@{utcNow()}",
+              "folder_path": "@{substring(outputs('Get_file_metadata')?['body/Path'],0,lastIndexOf(outputs('Get_file_metadata')?['body/Path'], '/'))}"
+            }
+          },
+          "runAfter": {
+            "Get_file_metadata": [
+              "SUCCEEDED"
+            ]
           }
         }
       }

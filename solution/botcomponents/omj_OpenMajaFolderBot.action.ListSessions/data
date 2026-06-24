@@ -1,5 +1,5 @@
 kind: TaskDialog
-modelDescription: List all existing sessions
+modelDescription: "Purpose: return session folder names with their last-modified timestamps. Files placed directly under FolderBot/sessions/ are ignored."
 outputs:
   - propertyName: success
 
@@ -11,6 +11,6 @@ action:
   connectionProperties:
     $kind: ConnectionProperties
     diagnostics:
-    mode: Maker
+    mode: Invoker
 
 outputMode: All

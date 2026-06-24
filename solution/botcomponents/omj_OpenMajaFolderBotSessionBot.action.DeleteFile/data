@@ -1,5 +1,5 @@
 kind: TaskDialog
-modelDescription: Delete a file (always confirm with user first)
+modelDescription: "Purpose: delete a file from the session folder."
 outputs:
   - propertyName: success
 
@@ -9,6 +9,6 @@ action:
   connectionProperties:
     $kind: ConnectionProperties
     diagnostics:
-    mode: Maker
+    mode: Invoker
 
 outputMode: All
