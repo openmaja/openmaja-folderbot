@@ -1,4 +1,4 @@
-<ImportExportXml version="9.2.26052.150" SolutionPackageVersion="9.2" languagecode="1040" generatedBy="CrmLive" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" OrganizationVersion="9.2.26052.150" OrganizationSchemaType="Standard" CRMServerServiceabilityVersion="9.2.26052.00150">
+<ImportExportXml version="9.2.26054.147" SolutionPackageVersion="9.2" languagecode="1040" generatedBy="CrmLive" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" OrganizationVersion="9.2.26054.147" OrganizationSchemaType="Standard" CRMServerServiceabilityVersion="9.2.26054.00147">
   <SolutionManifest>
     <UniqueName>FolderBotCore</UniqueName>
     <LocalizedNames>
@@ -7,7 +7,7 @@
     <Descriptions>
       <Description description="https://github.com/openmaja/openmaja-folderbot" languagecode="1040" />
     </Descriptions>
-    <Version>0.1.1.0</Version>
+    <Version>0.2.0.0</Version>
     <Managed>0</Managed>
     <Publisher>
       <UniqueName>openmaja</UniqueName>
@@ -89,6 +89,7 @@
       <RootComponent type="29" id="{9502c837-4162-f111-a826-7c1e5235b19f}" behavior="0" />
       <RootComponent type="29" id="{9602c837-4162-f111-a826-7c1e5235b19f}" behavior="0" />
       <RootComponent type="29" id="{a352c4b4-9457-f111-a825-7c1e5235b19f}" behavior="0" />
+      <RootComponent type="29" id="{cbc843ca-176b-f111-ab0d-7c1e5235b19f}" behavior="0" />
       <RootComponent type="29" id="{d42e22f0-ce55-f111-a825-7c1e5235b19f}" behavior="0" />
     </RootComponents>
     <MissingDependencies />

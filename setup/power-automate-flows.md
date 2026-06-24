@@ -3,8 +3,8 @@
 > **⚠️ Disclaimer:** This is a hobby project developed as a proof of concept. It is **not intended for production use**. Use it at your own risk. If you plan to deploy it in a corporate environment, always check with your IT department first to ensure it does not violate any company policy.
 
 
-**Goal:** build the eleven Power Automate flows that give the Copilot Studio agent its file operations.  
-**Deliverables:** the eleven working flows in your Power Platform environment · optional backup export of the `FolderBot` solution.
+**Goal:** build the Power Automate flows that give the Copilot Studio agent its file operations.  
+**Deliverables:** eleven core flows (required) + one optional RunJS flow · optional backup export of the `FolderBot` solution.
 
 At the end of this step the flow layer can create and resume sessions, read and write text files,
 list folder contents, maintain `history.jsonl`, and perform scoped line reads and in-place replacements. If you are following the manual path, the
@@ -882,6 +882,183 @@ a boolean `any_matched` flag.
 
 ---
 
+---
+
+### Flow 12 — RunJS *(optional — requires runner setup)*
+
+> This flow is only needed if you are setting up the browser-based local runner (Step 4 in
+> `runner-setup.md`). All core FolderBot operations work without it.
+
+**Purpose:** write a tool job descriptor to the session `jobs/` folder and poll for the result
+produced by the FolderBot browser runner. Blocks until the runner writes `<jobId>.out.json` or the
+timeout expires. Returns the tool output (or a `timeout` status) to the agent.
+
+**Inputs** (defined on the trigger):
+
+| Name | Type | Required | Description |
+|---|---|---|---|
+| `session_id` | Text | Yes | Session folder name |
+| `tool` | Text | Yes | Tool name matching a `.js` file in `tools/` or `user_tools/` |
+| `params` | Text | Yes | JSON string of tool-specific parameters |
+| `description` | Text | Yes | Human-readable description of what the job does (max 280 chars) |
+| ~~`timeout_seconds`~~ | — | — | Removed — timeout is hardcoded to 60 s in the flow |
+
+**Output fields to define on trigger:** `success` (Text), `status` (Text), `output` (Text), `error` (Text).
+
+**Steps:**
+
+1. **Compose** `jobId`
+
+   Generates a unique, time-ordered job ID:
+
+   ```text
+   @{concat(utcNow('yyyyMMddHHmmss'), '-', substring(guid(), 0, 8))}
+   ```
+
+2. **Compose** `jobPath`
+
+   Session-relative path where the job file will be written:
+
+   ```text
+   @{concat('jobs/', outputs('jobId'), '_job.json')}
+   ```
+
+3. **Compose** `resultPath`
+
+   Path the runner will write its result to:
+
+   ```text
+   @{concat('jobs/', outputs('jobId'), '_out.json')}
+   ```
+
+4. **Compose** `jobPayload`
+
+   Builds the JSON job descriptor:
+
+   ```text
+   @{concat('{"id":"', outputs('jobId'), '","session_id":"', triggerBody()['session_id'], '","tool":"', triggerBody()['tool'], '","params":', triggerBody()['params'], ',"description":"', replace(replace(triggerBody()['description'], '"', '\"'), uriComponentToString('%0A'), ' '), '","created_at":"', utcNow(), '"}')}
+   ```
+
+   > The nested `replace` calls escape double-quotes and strip newlines from the description — both would produce invalid JSON if left raw.
+
+5. **OneDrive for Business — Create file** to write the job file
+
+   | Field | Value |
+   |---|---|
+   | Folder path | `/@{parameters('xyz_folderbot_root')}/sessions/@{triggerBody()['session_id']}/jobs` |
+   | File name | `@{outputs('jobId')}_job.json` |
+   | File content | `@{outputs('jobPayload')}` |
+
+   > Jobs are flat files directly inside the `jobs/` folder — no subfolders per job.
+   > Using `_job.json` (underscore) avoids the double-extension issue where OneDrive
+   > mangles filenames like `abc.job.json` by appending `---<guid>` before `.json`.
+
+6. **Initialize variable** `elapsedSeconds`
+
+   | Field | Value |
+   |---|---|
+   | Name | `elapsedSeconds` |
+   | Type | Integer |
+   | Value | `0` |
+
+7. **Initialize variable** `resultContent`
+
+   | Field | Value |
+   |---|---|
+   | Name | `resultContent` |
+   | Type | String |
+   | Value | *(empty)* |
+
+8. **Do Until** loop — poll for `<jobId>_out.json`
+
+   **Loop condition (stop when true):**
+   ```text
+   @or(not(empty(variables('resultContent'))), greaterOrEquals(variables('elapsedSeconds'), 60))
+   ```
+
+   **Limit:** Count = 30, Timeout = PT5M
+
+   **Actions inside the loop:**
+
+   a. **Delay** — 5 seconds
+      | Field | Value |
+      |---|---|
+      | Unit | Second |
+      | Count | `5` |
+
+   b. **Compose** `newElapsed`
+      ```text
+      @{add(variables('elapsedSeconds'), 5)}
+      ```
+
+   c. **Set variable** `elapsedSeconds`
+      | Field | Value |
+      |---|---|
+      | Name | `elapsedSeconds` |
+      | Value | `@{outputs('newElapsed')}` |
+
+   d. **Scope** — try to read result *(configure **Run after**: succeeded)*
+
+      Inside the scope:
+
+      - **OneDrive for Business — Get file content using path**
+
+        | Field | Value |
+        |---|---|
+        | File path | `/@{parameters('xyz_folderbot_root')}/sessions/@{triggerBody()['session_id']}/@{outputs('resultPath')}` |
+
+      - **Condition** — check result is ready
+
+        ```text
+        @not(equals(json(body('Get_file_content_using_path')?['$content'])?['status'], 'running'))
+        ```
+
+        **If true:**
+        - **Set variable** `resultContent`
+          | Field | Value |
+          |---|---|
+          | Name | `resultContent` |
+          | Value | `@{base64ToString(body('Get_file_content_using_path')?['$content'])}` |
+
+      Configure the **Scope** with **Run after: succeeded** on the Delay.
+      Configure the inner **Get file content** with **Run after: succeeded** on the scope entry.
+      The scope itself may fail (file not yet present) — that is expected; the loop continues.
+
+9. **Condition** — check if we timed out
+
+   ```text
+   @empty(variables('resultContent'))
+   ```
+
+   **If true** (timeout):
+   - **Respond to the agent**:
+
+     | Output | Value |
+     |---|---|
+     | `success` | `false` |
+     | `status` | `timeout` |
+     | `output` | *(empty)* |
+     | `error` | `Runner did not respond within the timeout period. Ensure tools/runner.html is open and connected.` |
+
+   - **Terminate** (Status: Succeeded — this is a normal outcome, not an error)
+
+10. **Compose** `resultJson`
+
+    ```text
+    @{json(variables('resultContent'))}
+    ```
+
+11. **Respond to the agent**:
+
+    | Output | Value |
+    |---|---|
+    | `success` | `@{equals(outputs('resultJson')?['status'], 'done')}` |
+    | `status` | `@{outputs('resultJson')?['status']}` |
+    | `output` | `@{string(outputs('resultJson')?['output'])}` |
+    | `error` | `@{outputs('resultJson')?['error']}` |
+
+---
+
 ## Step 5 — Test each flow standalone
 
 Before connecting to Copilot Studio, test each flow using the **Test** button in Power Automate:
@@ -902,6 +1079,7 @@ Minimum test matrix:
 - ReadFileLines → `memory.md`, `from_line=1`, `to_line=5`; verify `content` contains the first 5 lines and `total_lines` reflects the full file
 - ReplaceInFile → write a test file with known content, pass one replacement pair, verify the file is updated and `replacements_made=1`
 - ReplaceInFile → pass an `old_text` that does not exist; verify `any_matched=false` and file is unchanged
+- RunJS *(if runner is set up)* → drop a manual `<jobId>_job.json` in the session `jobs/` folder, verify the runner picks it up and `<jobId>_out.json` is written; then call the flow and verify it returns `status: done`; call again with runner closed and verify `status: timeout`
 
 ---
 
