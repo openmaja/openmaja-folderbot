@@ -1,0 +1,402 @@
+{
+  "properties": {
+    "connectionReferences": {
+      "shared_onedriveforbusiness": {
+        "api": {
+          "name": "shared_onedriveforbusiness"
+        },
+        "connection": {
+          "connectionReferenceLogicalName": "omj_sharedonedriveforbusiness_2f22d"
+        },
+        "runtimeSource": "invoker"
+      }
+    },
+    "definition": {
+      "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+      "contentVersion": "undefined",
+      "parameters": {
+        "$authentication": {
+          "defaultValue": {},
+          "type": "SecureObject"
+        },
+        "$connections": {
+          "defaultValue": {},
+          "type": "Object"
+        },
+        "FolderBot Root Folder (omj_folderbot_root)": {
+          "defaultValue": "FolderBot",
+          "type": "String",
+          "metadata": {
+            "schemaName": "omj_folderbot_root",
+            "description": "FolderBot Root Folder"
+          }
+        }
+      },
+      "triggers": {
+        "manual": {
+          "type": "Request",
+          "kind": "Skills",
+          "inputs": {
+            "schema": {
+              "type": "object",
+              "properties": {
+                "text": {
+                  "description": "Session folder name",
+                  "title": "session_id",
+                  "type": "string",
+                  "x-ms-content-hint": "TEXT",
+                  "x-ms-dynamically-added": true
+                },
+                "text_1": {
+                  "description": "Tool name matching a .js file in tools/ or user_tools/",
+                  "title": "tool",
+                  "type": "string",
+                  "x-ms-content-hint": "TEXT",
+                  "x-ms-dynamically-added": true
+                },
+                "text_2": {
+                  "description": "JSON string of tool-specific parameters",
+                  "title": "params",
+                  "type": "string",
+                  "x-ms-content-hint": "TEXT",
+                  "x-ms-dynamically-added": true
+                },
+                "text_3": {
+                  "description": "Human-readable description of what the job does (max 280 chars)",
+                  "title": "description",
+                  "type": "string",
+                  "x-ms-content-hint": "TEXT",
+                  "x-ms-dynamically-added": true
+                }
+              },
+              "required": [
+                "text",
+                "text_1",
+                "text_2",
+                "text_3"
+              ]
+            }
+          }
+        }
+      },
+      "actions": {
+        "Respond_to_the_agent": {
+          "type": "Response",
+          "kind": "Skills",
+          "inputs": {
+            "schema": {
+              "type": "object",
+              "properties": {
+                "success": {
+                  "title": "success",
+                  "description": "Wheter the tool was posted correctly",
+                  "type": "string",
+                  "x-ms-content-hint": "TEXT",
+                  "x-ms-dynamically-added": true
+                },
+                "status": {
+                  "title": "status",
+                  "description": "the current job status",
+                  "type": "string",
+                  "x-ms-content-hint": "TEXT",
+                  "x-ms-dynamically-added": true
+                },
+                "error": {
+                  "title": "error",
+                  "description": "Error description (if any)",
+                  "type": "string",
+                  "x-ms-content-hint": "TEXT",
+                  "x-ms-dynamically-added": true
+                },
+                "output": {
+                  "title": "output",
+                  "description": "the result",
+                  "type": "string",
+                  "x-ms-content-hint": "TEXT",
+                  "x-ms-dynamically-added": true
+                }
+              },
+              "additionalProperties": {}
+            },
+            "statusCode": 200,
+            "body": {
+              "success": "@{variables('resultSuccess')}",
+              "status": "@{variables('resultStatus')}",
+              "error": "@{variables('resultStatus')}",
+              "output": "@{variables('resultContent')}"
+            }
+          },
+          "runAfter": {
+            "Do_until": [
+              "Succeeded"
+            ]
+          }
+        },
+        "Compose_jobId": {
+          "type": "Compose",
+          "inputs": "@concat(utcNow('yyyyMMddHHmmss'), '-', substring(guid(), 0, 8))",
+          "runAfter": {
+            "Initialize_resultSucccess": [
+              "Succeeded"
+            ]
+          }
+        },
+        "Compose_resultPath": {
+          "type": "Compose",
+          "inputs": "@{concat('jobs/', outputs('Compose_jobId'), '_out.json')}\n",
+          "runAfter": {
+            "Compose_jobId": [
+              "Succeeded"
+            ]
+          }
+        },
+        "Compose_jobPayload": {
+          "type": "Compose",
+          "inputs": "@concat('{\"id\":\"', outputs('Compose_jobId'), '\",\"session_id\":\"', triggerBody()?['text'], '\",\"tool\":\"', triggerBody()?['text_1'], '\",\"params\":', triggerBody()?['text_2'], ',\"description\":\"', replace(replace(triggerBody()?['text_3'], '\"', '\\\"'), uriComponentToString('%0A'), ' '), '\",\"created_at\":\"', utcNow(), '\"}')\r\n",
+          "runAfter": {
+            "Compose_resultPath": [
+              "Succeeded"
+            ]
+          }
+        },
+        "Create_file": {
+          "type": "OpenApiConnection",
+          "inputs": {
+            "parameters": {
+              "folderPath": "@{parameters('FolderBot Root Folder (omj_folderbot_root)')}/sessions/@{triggerBody()?['text']}/jobs",
+              "name": "@{outputs('Compose_jobId')}_job.json",
+              "body": "@outputs('Compose_jobPayload')"
+            },
+            "host": {
+              "apiId": "/providers/Microsoft.PowerApps/apis/shared_onedriveforbusiness",
+              "operationId": "CreateFile",
+              "connectionName": "shared_onedriveforbusiness"
+            }
+          },
+          "runAfter": {
+            "Compose_jobPayload": [
+              "Succeeded"
+            ]
+          },
+          "runtimeConfiguration": {
+            "contentTransfer": {
+              "transferMode": "Chunked"
+            }
+          }
+        },
+        "Initialize_elapsedSeconds": {
+          "type": "InitializeVariable",
+          "inputs": {
+            "variables": [
+              {
+                "name": "elapsedSeconds",
+                "type": "integer",
+                "value": 0
+              }
+            ]
+          },
+          "runAfter": {
+            "Initialize_variable": [
+              "SUCCEEDED"
+            ]
+          }
+        },
+        "Initialize_resultContent": {
+          "type": "InitializeVariable",
+          "inputs": {
+            "variables": [
+              {
+                "name": "resultContent",
+                "type": "string"
+              }
+            ]
+          },
+          "runAfter": {
+            "Initialize_elapsedSeconds": [
+              "Succeeded"
+            ]
+          }
+        },
+        "Do_until": {
+          "type": "Until",
+          "expression": "@or(not(empty(variables('resultContent'))), greaterOrEquals(variables('elapsedSeconds'), variables('timeout_seconds')))",
+          "limit": {
+            "count": 60,
+            "timeout": "PT1H"
+          },
+          "actions": {
+            "Compose_newElapsed": {
+              "type": "Compose",
+              "inputs": "@add(variables('elapsedSeconds'), 5)"
+            },
+            "Set_elapsedSeconds": {
+              "type": "SetVariable",
+              "inputs": {
+                "name": "elapsedSeconds",
+                "value": "@int(outputs('Compose_newElapsed'))"
+              },
+              "runAfter": {
+                "Compose_newElapsed": [
+                  "Succeeded"
+                ]
+              }
+            },
+            "Get_file_metadata_using_path": {
+              "type": "OpenApiConnection",
+              "inputs": {
+                "parameters": {
+                  "path": "/@{parameters('FolderBot Root Folder (omj_folderbot_root)')}/sessions/@{triggerBody()?['text']}/@{outputs('Compose_resultPath')}"
+                },
+                "host": {
+                  "apiId": "/providers/Microsoft.PowerApps/apis/shared_onedriveforbusiness",
+                  "operationId": "GetFileMetadataByPath",
+                  "connectionName": "shared_onedriveforbusiness"
+                }
+              },
+              "runAfter": {
+                "Set_elapsedSeconds": [
+                  "Succeeded"
+                ]
+              }
+            },
+            "Scope_FileFound": {
+              "type": "Scope",
+              "actions": {
+                "Get_file_content": {
+                  "type": "OpenApiConnection",
+                  "inputs": {
+                    "parameters": {
+                      "id": "@outputs('Get_file_metadata_using_path')?['body/Id']",
+                      "inferContentType": true
+                    },
+                    "host": {
+                      "apiId": "/providers/Microsoft.PowerApps/apis/shared_onedriveforbusiness",
+                      "operationId": "GetFileContent",
+                      "connectionName": "shared_onedriveforbusiness"
+                    }
+                  }
+                },
+                "Set_variable_resultContent": {
+                  "type": "SetVariable",
+                  "inputs": {
+                    "name": "resultContent",
+                    "value": "@base64ToString(body('Get_file_content')?['$content'])"
+                  },
+                  "runAfter": {
+                    "Get_file_content": [
+                      "Succeeded"
+                    ]
+                  }
+                },
+                "Set_variable_resultStatus": {
+                  "type": "SetVariable",
+                  "inputs": {
+                    "name": "resultStatus",
+                    "value": "success"
+                  },
+                  "runAfter": {
+                    "Set_variable_resultContent": [
+                      "Succeeded"
+                    ]
+                  }
+                },
+                "Set_variable_2": {
+                  "type": "SetVariable",
+                  "inputs": {
+                    "name": "resultSuccess",
+                    "value": true
+                  },
+                  "runAfter": {
+                    "Set_variable_resultStatus": [
+                      "Succeeded"
+                    ]
+                  }
+                }
+              },
+              "runAfter": {
+                "Get_file_metadata_using_path": [
+                  "Succeeded"
+                ]
+              }
+            },
+            "Scope_FileNotFound": {
+              "type": "Scope",
+              "actions": {
+                "Delay_1": {
+                  "type": "Wait",
+                  "inputs": {
+                    "interval": {
+                      "count": 5,
+                      "unit": "Second"
+                    }
+                  }
+                }
+              },
+              "runAfter": {
+                "Get_file_metadata_using_path": [
+                  "Failed",
+                  "Skipped",
+                  "TimedOut"
+                ]
+              }
+            }
+          },
+          "runAfter": {
+            "Create_file": [
+              "Succeeded"
+            ]
+          }
+        },
+        "Initialize_resultStatus": {
+          "type": "InitializeVariable",
+          "inputs": {
+            "variables": [
+              {
+                "name": "resultStatus",
+                "type": "string",
+                "value": "timeout"
+              }
+            ]
+          },
+          "runAfter": {
+            "Initialize_resultContent": [
+              "Succeeded"
+            ]
+          }
+        },
+        "Initialize_resultSucccess": {
+          "type": "InitializeVariable",
+          "inputs": {
+            "variables": [
+              {
+                "name": "resultSuccess",
+                "type": "boolean",
+                "value": false
+              }
+            ]
+          },
+          "runAfter": {
+            "Initialize_resultStatus": [
+              "Succeeded"
+            ]
+          }
+        },
+        "Initialize_variable": {
+          "type": "InitializeVariable",
+          "inputs": {
+            "variables": [
+              {
+                "name": "timeout_seconds",
+                "type": "integer",
+                "value": 60
+              }
+            ]
+          },
+          "runAfter": {}
+        }
+      }
+    },
+    "templateName": null
+  },
+  "schemaVersion": "1.0.0.0"
+}

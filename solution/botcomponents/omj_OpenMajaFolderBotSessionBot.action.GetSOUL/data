@@ -1,0 +1,16 @@
+kind: TaskDialog
+modelDescription: "Purpose: read SOUL.md from the FolderBot root folder and return its content as the active behavioral contract for SessionBot. If SOUL.md does not exist, create it with the default content and return that. This makes the system self-healing on first deploy — no manual setup step is required for SOUL.md."
+outputs:
+  - propertyName: success
+
+  - propertyName: soul_content
+
+action:
+  kind: InvokeFlowTaskAction
+  flowId: 0d7d2a8b-b061-f111-a826-7c1e5235b19f
+  connectionProperties:
+    $kind: ConnectionProperties
+    diagnostics:
+    mode: Invoker
+
+outputMode: All

@@ -1,0 +1,68 @@
+name: GetSOUL
+trigger: copilot_action
+description: >
+  Read SOUL.md from the FolderBot root folder and return its content as the active
+  behavioral contract for SessionBot. If SOUL.md does not exist, create it with the
+  default content and return that. No inputs — always reads from the configured root.
+
+inputs: {}
+
+outputs:
+  soul_content: { type: string }
+
+constants:
+  default_soul: |
+    # OpenMaja FolderBot — Global Rules
+
+    ## Behavior
+    - Be concise and task-focused. Avoid lengthy explanations unless asked.
+    - Always confirm with the user before deleting files.
+    - After every meaningful action, update `memory.md`, `plan.md`, and `state.json`.
+
+    ## File system boundaries
+    - Only operate within `FolderBot/sessions/<sessionId>/`.
+    - Never read, write, or reference files outside this boundary.
+    - Never store secrets, credentials, or personal data in session files.
+
+    ## Safety
+    - When uncertain, do less and ask the user for clarification.
+
+steps:
+  - id: soul_path
+    action: compose
+    value: "/@{parameters('xyz_folderbot_root')}/SOUL.md"
+
+  - id: try_read
+    action: scope
+    description: "Attempt to read SOUL.md from the root folder."
+    actions:
+      - id: get_metadata
+        action: onedrive.get_file_metadata_by_path
+        path: "@{soul_path}"
+      - id: read_content
+        action: onedrive.get_file_content_by_path
+        path: "@{soul_path}"
+
+  - id: create_default
+    action: scope
+    run_after:
+      try_read: [failed]
+    description: "SOUL.md not found — create it with default content."
+    actions:
+      - id: create_file
+        action: onedrive.create_file
+        folder: "/@{parameters('xyz_folderbot_root')}"
+        filename: "SOUL.md"
+        content: "@{constants.default_soul}"
+
+  - id: respond
+    action: copilot.respond
+    run_after:
+      create_default: [succeeded, skipped]
+    body:
+      soul_content: |
+        @{if(
+          equals(try_read.status, 'Succeeded'),
+          try_read.actions.read_content.body,
+          constants.default_soul
+        )}

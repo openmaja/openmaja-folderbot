@@ -1,0 +1,695 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FolderBot Runner</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: system-ui, sans-serif; background: #f0f2f5; color: #1a1a1a; min-height: 100vh; }
+    header { background: #0078d4; color: white; padding: 14px 24px; display: flex; align-items: center; gap: 12px; }
+    header h1 { font-size: 1.1rem; font-weight: 600; }
+    header .badge { font-size: 0.75rem; background: rgba(255,255,255,0.2); padding: 2px 8px; border-radius: 12px; }
+    .container { max-width: 1600px; margin: 0 auto; padding: 24px; }
+    .card { background: white; border-radius: 8px; padding: 20px; margin-bottom: 16px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); }
+    .card h2 { font-size: 0.85rem; font-weight: 600; color: #555; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 12px; }
+    button { background: #0078d4; color: white; border: none; padding: 8px 18px; border-radius: 5px; cursor: pointer; font-size: 0.9rem; }
+    button:disabled { background: #aaa; cursor: not-allowed; }
+    button.secondary { background: #f3f3f3; color: #333; border: 1px solid #ddd; }
+    select { padding: 7px 10px; border-radius: 5px; border: 1px solid #ddd; font-size: 0.9rem; min-width: 200px; }
+    .status-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+    .dot { width: 10px; height: 10px; border-radius: 50%; background: #ccc; flex-shrink: 0; }
+    .dot.green { background: #107c10; }
+    .dot.amber { background: #ca5010; }
+    .dot.red { background: #d13438; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+    th { text-align: left; padding: 8px 10px; border-bottom: 2px solid #eee; color: #555; font-weight: 600; }
+    td { padding: 8px 10px; border-bottom: 1px solid #f0f0f0; vertical-align: top; }
+    tr:last-child td { border-bottom: none; }
+    .pill { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 0.78rem; font-weight: 500; }
+    .pill.done { background: #dff6dd; color: #107c10; }
+    .pill.running { background: #fff4ce; color: #7a5c00; }
+    .pill.error { background: #fde7e9; color: #a80000; }
+    .pill.timeout { background: #f3f3f3; color: #555; }
+    .pill.pending { background: #eff6fc; color: #0078d4; }
+    code { font-family: monospace; font-size: 0.82rem; background: #f5f5f5; padding: 1px 4px; border-radius: 3px; }
+    .log { font-family: monospace; font-size: 0.8rem; background: #1a1a1a; color: #d4d4d4; padding: 14px; border-radius: 6px; max-height: 200px; overflow-y: auto; white-space: pre-wrap; word-break: break-all; }
+    .empty { color: #999; font-size: 0.88rem; text-align: center; padding: 20px 0; }
+    #setup { display: block; }
+    #main { display: none; }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>FolderBot Runner</h1>
+  <span class="badge" id="versionBadge">v0.1</span>
+</header>
+
+<div class="container">
+
+  <!-- Setup panel (shown before folder is picked) -->
+  <div id="setup">
+
+    <!-- Reconnect card — hidden until saved handles are found in IndexedDB -->
+    <div class="card" id="reconnectCard" style="display:none;border:2px solid #0078d4;">
+      <h2 style="color:#0078d4;">Resume last session</h2>
+      <p style="margin-bottom:12px;font-size:0.9rem;color:#555;">
+        The runner was previously connected to these folders.
+        Click <strong>Reconnect</strong> to restore the connection — the browser will ask you to confirm access.
+      </p>
+      <div style="font-size:0.88rem;margin-bottom:14px;display:flex;flex-direction:column;gap:6px;">
+        <div>FolderBot: <code id="savedRootName" style="color:#0078d4;"></code></div>
+        <div id="savedSecretsRow" style="display:none;">Secrets: <code id="savedSecretsName" style="color:#0078d4;"></code></div>
+      </div>
+      <div class="status-row">
+        <button id="reconnectBtn">Reconnect</button>
+        <span id="reconnectError" style="color:#d13438;font-size:0.85rem;display:none;"></span>
+        <button class="secondary" id="forgetBtn" style="margin-left:auto;font-size:0.8rem;padding:4px 10px;">Forget saved folders</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Secrets folder <span style="font-weight:400;color:#999;font-size:0.8rem;text-transform:none;letter-spacing:0">(optional)</span></h2>
+      <p style="margin-bottom:16px;color:#555;font-size:0.9rem;">
+        Select a <strong>local folder</strong> (not inside OneDrive) where you store secrets used by tools
+        (API keys, tokens, etc.). This folder is never synced — it stays on your machine only.
+        Tools access secrets by filename via <code>fs.readSecret(name)</code>.
+        Pick this first, before connecting to FolderBot.
+      </p>
+      <div class="status-row">
+        <button id="pickSecretsBtn" class="secondary">Pick secrets folder</button>
+        <span id="secretsStatus" style="font-size:0.85rem;color:#999;">Not connected</span>
+      </div>
+    </div>
+    <div class="card">
+      <h2>Connect to FolderBot</h2>
+      <p style="margin-bottom:16px;color:#555;font-size:0.9rem;">
+        Select your local <strong>FolderBot</strong> root folder (the one synced by OneDrive that contains <code>sessions/</code> and <code>tools/</code>).
+        The runner will poll for jobs and execute them using the tool library in that folder.
+      </p>
+      <button id="pickBtn">Pick FolderBot folder</button>
+      <p id="pickError" style="color:#d13438;margin-top:10px;font-size:0.85rem;display:none;"></p>
+    </div>
+    <div class="card">
+      <h2>Pre-flight checklist</h2>
+      <div id="preflight" style="font-size:0.88rem;display:flex;flex-direction:column;gap:8px;">
+        <div class="status-row"><span class="dot" id="dotWasm"></span> WebAssembly available</div>
+        <div class="status-row"><span class="dot" id="dotFsa"></span> File System Access API available</div>
+        <div class="status-row"><span class="dot" id="dotWorker"></span> Web Worker (Blob URL) available</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Main panel (shown after folder is picked) -->
+  <div id="main">
+    <div class="card">
+      <h2>Status</h2>
+      <div class="status-row">
+        <span class="dot green" id="runnerDot"></span>
+        <span id="runnerStatus">Polling for jobs…</span>
+        <button class="secondary" id="changeBtn" style="margin-left:auto;font-size:0.8rem;padding:4px 10px;">Change folder</button>
+      </div>
+      <div style="margin-top:10px;font-size:0.85rem;color:#555;display:flex;align-items:center;gap:16px;flex-wrap:wrap;">
+        <span>Root: <code id="rootName"></code></span>
+        <span>Secrets: <code id="secretsName" style="color:#999;">none</code></span>
+        <span>Session: <select id="sessionSelect"><option value="*">All sessions</option></select></span>
+        <span style="margin-left:auto;background:#eff6fc;color:#0078d4;padding:3px 10px;border-radius:12px;font-weight:500;">
+          Next poll in <span id="countdown">5</span>s
+        </span>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Installed tools <button class="secondary" id="refreshToolsBtn" style="font-size:0.78rem;padding:3px 10px;margin-left:10px;">Refresh</button></h2>
+      <div id="toolsPanel" style="display:flex;gap:32px;flex-wrap:wrap;font-size:0.88rem;">
+        <div>
+          <div style="font-weight:600;color:#555;margin-bottom:6px;">Built-in (<code>tools/</code>)</div>
+          <ul id="builtinList" style="list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:4px;"></ul>
+        </div>
+        <div>
+          <div style="font-weight:600;color:#555;margin-bottom:6px;">Custom (<code>user_tools/</code>)</div>
+          <ul id="customList" style="list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:4px;"></ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Job history <span id="jobCount" style="font-weight:400;color:#999;font-size:0.8rem;text-transform:none;letter-spacing:0"></span></h2>
+      <div id="jobsEmpty" class="empty">No jobs yet. Jobs written to <code>sessions/&lt;id&gt;/jobs/</code> will appear here.</div>
+      <div style="overflow-x:auto;">
+        <table id="jobsTable" style="display:none;">
+          <thead>
+            <tr>
+              <th style="width:96px">Started</th>
+              <th style="width:70px">Finished</th>
+              <th style="width:72px">Status</th>
+              <th style="width:110px">Session</th>
+              <th style="width:110px">Command</th>
+              <th>Description</th>
+              <th style="width:220px">Output / Error</th>
+            </tr>
+          </thead>
+          <tbody id="jobsBody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Runner log</h2>
+      <div class="log" id="log">Runner started.
+</div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+// ─── Pre-flight checks ──────────────────────────────────────────────────────
+function setDot(id, ok) {
+  document.getElementById(id).className = 'dot ' + (ok ? 'green' : 'red');
+}
+
+(async () => {
+  setDot('dotFsa', typeof window.showDirectoryPicker === 'function');
+
+  let wasmOk = false;
+  try {
+    await WebAssembly.instantiate(new Uint8Array([
+      0,97,115,109,1,0,0,0,1,5,1,96,0,1,127,3,2,1,0,7,7,1,3,114,117,110,0,0,10,6,1,4,0,65,42,11
+    ]));
+    wasmOk = true;
+  } catch {}
+  setDot('dotWasm', wasmOk);
+
+  let workerOk = false;
+  try {
+    const b = new Blob(['self.postMessage(1)'], { type: 'application/javascript' });
+    await new Promise((res, rej) => {
+      const w = new Worker(URL.createObjectURL(b));
+      w.onmessage = () => { w.terminate(); res(); };
+      w.onerror = rej;
+      setTimeout(rej, 2000);
+    });
+    workerOk = true;
+  } catch {}
+  setDot('dotWorker', workerOk);
+})();
+
+// ─── IndexedDB persistence ────────────────────────────────────────────────────
+const IDB_NAME = 'folderbot-runner', IDB_VER = 1, IDB_STORE = 'handles';
+
+function idbOpen() {
+  return new Promise((res, rej) => {
+    const r = indexedDB.open(IDB_NAME, IDB_VER);
+    r.onupgradeneeded = e => e.target.result.createObjectStore(IDB_STORE);
+    r.onsuccess = e => res(e.target.result);
+    r.onerror = e => rej(e.target.error);
+  });
+}
+
+async function idbSave(root, secrets) {
+  try {
+    const db = await idbOpen();
+    await new Promise((res, rej) => {
+      const tx = db.transaction(IDB_STORE, 'readwrite');
+      tx.objectStore(IDB_STORE).put({ root, secrets: secrets || null }, 'saved');
+      tx.oncomplete = res; tx.onerror = e => rej(e.target.error);
+    });
+  } catch (e) { log('idbSave error: ' + e.message); }
+}
+
+async function idbLoad() {
+  try {
+    const db = await idbOpen();
+    return await new Promise(res => {
+      const tx = db.transaction(IDB_STORE, 'readonly');
+      const r = tx.objectStore(IDB_STORE).get('saved');
+      r.onsuccess = e => res(e.target.result || null);
+      r.onerror = () => res(null);
+    });
+  } catch { return null; }
+}
+
+async function idbClear() {
+  try {
+    const db = await idbOpen();
+    await new Promise((res, rej) => {
+      const tx = db.transaction(IDB_STORE, 'readwrite');
+      tx.objectStore(IDB_STORE).delete('saved');
+      tx.oncomplete = res; tx.onerror = e => rej(e.target.error);
+    });
+  } catch {}
+}
+
+// On load: check for saved handles and show reconnect card
+(async () => {
+  const saved = await idbLoad();
+  if (!saved?.root) return;
+  document.getElementById('savedRootName').textContent = saved.root.name;
+  if (saved.secrets) {
+    document.getElementById('savedSecretsName').textContent = saved.secrets.name;
+    document.getElementById('savedSecretsRow').style.display = '';
+  }
+  document.getElementById('reconnectCard').style.display = '';
+})();
+
+document.getElementById('reconnectBtn').addEventListener('click', async () => {
+  const errEl = document.getElementById('reconnectError');
+  errEl.style.display = 'none';
+  const saved = await idbLoad();
+  if (!saved?.root) return;
+  try {
+    // Request permission — requires user gesture, will show browser prompt
+    const perm = await saved.root.requestPermission({ mode: 'readwrite' });
+    if (perm !== 'granted') { errEl.textContent = 'Permission denied — please use the folder picker instead.'; errEl.style.display = ''; return; }
+    rootHandle = saved.root;
+    if (saved.secrets) {
+      const sp = await saved.secrets.requestPermission({ mode: 'read' });
+      if (sp === 'granted') {
+        secretsHandle = saved.secrets;
+        document.getElementById('secretsName').textContent = saved.secrets.name;
+        document.getElementById('secretsName').style.color = '#1a1a1a';
+      }
+    }
+    document.getElementById('rootName').textContent = rootHandle.name;
+    document.getElementById('setup').style.display = 'none';
+    document.getElementById('main').style.display = 'block';
+    await Promise.all([refreshSessions(), loadTools()]);
+    startPolling();
+    log('Reconnected to: ' + rootHandle.name);
+  } catch (e) {
+    errEl.textContent = 'Reconnect failed: ' + e.message;
+    errEl.style.display = '';
+  }
+});
+
+document.getElementById('forgetBtn').addEventListener('click', async () => {
+  await idbClear();
+  document.getElementById('reconnectCard').style.display = 'none';
+  log('Saved folders cleared.');
+});
+
+// ─── State ──────────────────────────────────────────────────────────────────
+let rootHandle = null;
+let secretsHandle = null;
+let pollTimer = null;
+let countdownTimer = null;
+let nextPollIn = 5;
+const MAX_JOB_ROWS = 50;
+const processedJobs = new Set();   // job IDs we've already handled
+const jobRows = {};                // jobId → <tr> element
+const jobStartTimes = {};          // jobId → Date
+
+// ─── Logging ────────────────────────────────────────────────────────────────
+function log(msg) {
+  const el = document.getElementById('log');
+  el.textContent += '[' + new Date().toTimeString().slice(0,8) + '] ' + msg + '\n';
+  el.scrollTop = el.scrollHeight;
+}
+
+// ─── File system helpers ─────────────────────────────────────────────────────
+async function getFileHandle(dirHandle, relPath, create = false) {
+  const parts = relPath.split('/');
+  let cur = dirHandle;
+  for (let i = 0; i < parts.length - 1; i++) {
+    cur = await cur.getDirectoryHandle(parts[i], { create });
+  }
+  return cur.getFileHandle(parts[parts.length - 1], { create });
+}
+
+async function readFile(dirHandle, relPath) {
+  const fh = await getFileHandle(dirHandle, relPath);
+  const file = await fh.getFile();
+  return file.text();
+}
+
+async function writeFile(dirHandle, relPath, content) {
+  const fh = await getFileHandle(dirHandle, relPath, true);
+  const writable = await fh.createWritable();
+  await writable.write(content);
+  await writable.close();
+}
+
+async function fileExists(dirHandle, relPath) {
+  try { await getFileHandle(dirHandle, relPath); return true; } catch { return false; }
+}
+
+// ─── Folder picker ───────────────────────────────────────────────────────────
+document.getElementById('pickBtn').addEventListener('click', async () => {
+  const errEl = document.getElementById('pickError');
+  errEl.style.display = 'none';
+  try {
+    const handle = await window.showDirectoryPicker({ mode: 'readwrite' });
+    // Quick validation: check for sessions/ subfolder
+    try { await handle.getDirectoryHandle('sessions'); }
+    catch {
+      errEl.textContent = 'This does not look like a FolderBot root — "sessions/" folder not found.';
+      errEl.style.display = '';
+      return;
+    }
+    rootHandle = handle;
+    document.getElementById('rootName').textContent = handle.name;
+    document.getElementById('setup').style.display = 'none';
+    document.getElementById('main').style.display = 'block';
+    await Promise.all([refreshSessions(), loadTools()]);
+    startPolling();
+    await idbSave(rootHandle, secretsHandle);
+    log('Connected to folder: ' + handle.name);
+  } catch (e) {
+    if (e.name !== 'AbortError') {
+      errEl.textContent = 'Error: ' + e.message;
+      errEl.style.display = '';
+    }
+  }
+});
+
+document.getElementById('changeBtn').addEventListener('click', () => {
+  stopPolling();
+  rootHandle = null;
+  secretsHandle = null;
+  nextPollIn = 5;
+  processedJobs.clear();
+  document.getElementById('setup').style.display = 'block';
+  document.getElementById('main').style.display = 'none';
+  document.getElementById('secretsStatus').textContent = 'Not connected';
+  document.getElementById('secretsName').textContent = 'none';
+  document.getElementById('secretsName').style.color = '#999';
+});
+
+document.getElementById('pickSecretsBtn').addEventListener('click', async () => {
+  try {
+    const handle = await window.showDirectoryPicker({ mode: 'read' });
+    secretsHandle = handle;
+    document.getElementById('secretsStatus').textContent = '✓ ' + handle.name;
+    document.getElementById('secretsStatus').style.color = '#107c10';
+    // Update main panel if already connected
+    document.getElementById('secretsName').textContent = handle.name;
+    document.getElementById('secretsName').style.color = '#1a1a1a';
+    if (rootHandle) await idbSave(rootHandle, secretsHandle);
+    log('Secrets folder connected: ' + handle.name);
+  } catch (e) {
+    if (e.name !== 'AbortError') log('Secrets folder error: ' + e.message);
+  }
+});
+
+// ─── Tool list ───────────────────────────────────────────────────────────────
+const EXCLUDED_TOOLS = new Set(['runner.html', 'fetch-allowlist.json', 'README.md']);
+
+async function extractToolDescription(dir, filename) {
+  try {
+    const fh = await dir.getFileHandle(filename + '.js');
+    const text = await (await fh.getFile()).text();
+    for (const line of text.split('\n')) {
+      const m = line.match(/^\s*\*\s+(.+)/);
+      if (m) {
+        // Strip leading "filename — " or "filename.js — " prefix if present
+        return m[1].replace(/^\S+\.js\s+[—–]\s+/, '').replace(/^\S+\s+[—–]\s+/, '');
+      }
+    }
+  } catch {}
+  return '';
+}
+
+async function loadTools() {
+  async function listJs(dirName, listId) {
+    const ul = document.getElementById(listId);
+    ul.innerHTML = '';
+    try {
+      const dir = await rootHandle.getDirectoryHandle(dirName);
+      const names = [];
+      for await (const [name, handle] of dir.entries()) {
+        if (handle.kind === 'file' && name.endsWith('.js') && !EXCLUDED_TOOLS.has(name))
+          names.push(name.slice(0, -3));
+      }
+      names.sort();
+      if (names.length === 0) {
+        ul.innerHTML = '<li style="color:#999;">none</li>';
+      } else {
+        for (const name of names) {
+          const desc = await extractToolDescription(dir, name);
+          const li = document.createElement('li');
+          li.style.cssText = 'display:flex;align-items:baseline;gap:8px;';
+          li.innerHTML = `<code style="background:#f5f5f5;padding:2px 6px;border-radius:3px;white-space:nowrap;">${esc(name)}</code>`
+            + (desc ? `<span style="color:#666;font-size:0.82rem;">${esc(desc)}</span>` : '');
+          ul.appendChild(li);
+        }
+      }
+    } catch {
+      ul.innerHTML = '<li style="color:#999;">folder not found</li>';
+    }
+  }
+  await Promise.all([listJs('tools', 'builtinList'), listJs('user_tools', 'customList')]);
+}
+
+document.getElementById('refreshToolsBtn').addEventListener('click', loadTools);
+
+// ─── Session list ─────────────────────────────────────────────────────────────
+async function refreshSessions() {
+  const select = document.getElementById('sessionSelect');
+  const current = select.value;
+  while (select.options.length > 1) select.remove(1);
+  try {
+    const sessionsDir = await rootHandle.getDirectoryHandle('sessions');
+    for await (const [name, handle] of sessionsDir.entries()) {
+      if (handle.kind === 'directory') {
+        const opt = document.createElement('option');
+        opt.value = name; opt.textContent = name;
+        select.appendChild(opt);
+      }
+    }
+  } catch {}
+  select.value = current || '*';
+}
+
+// ─── Polling + countdown ─────────────────────────────────────────────────────
+function startPolling() {
+  poll();
+  pollTimer = setInterval(() => { nextPollIn = 5; poll(); }, 5000);
+  countdownTimer = setInterval(() => {
+    nextPollIn = Math.max(0, nextPollIn - 1);
+    const el = document.getElementById('countdown');
+    if (el) el.textContent = nextPollIn;
+  }, 1000);
+}
+function stopPolling() {
+  if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+  if (countdownTimer) { clearInterval(countdownTimer); countdownTimer = null; }
+}
+
+async function poll() {
+  if (!rootHandle) return;
+  try {
+    const sessionsDir = await rootHandle.getDirectoryHandle('sessions');
+    const filterSession = document.getElementById('sessionSelect').value;
+    for await (const [sessionId, sessionHandle] of sessionsDir.entries()) {
+      if (sessionHandle.kind !== 'directory') continue;
+      if (filterSession !== '*' && filterSession !== sessionId) continue;
+      let jobsDir;
+      try { jobsDir = await sessionHandle.getDirectoryHandle('jobs'); } catch { continue; }
+      for await (const [name, handle] of jobsDir.entries()) {
+        if (handle.kind !== 'file') continue;
+        if (!name.endsWith('_job.json')) continue;
+        const jobId = name.slice(0, -'_job.json'.length);
+        if (processedJobs.has(jobId)) continue;
+        const hasResult = await fileExists(jobsDir, jobId + '_out.json');
+        if (!hasResult) {
+          processedJobs.add(jobId);
+          executeJob(sessionId, sessionHandle, jobsDir, jobId);
+        }
+      }
+    }
+  } catch (e) { log('Poll error: ' + e.message); }
+}
+
+// ─── Job execution ────────────────────────────────────────────────────────────
+async function executeJob(sessionId, sessionHandle, jobsDir, jobId) {
+  const startTime = Date.now();
+  jobStartTimes[jobId] = new Date();
+  addJobRow(jobId, sessionId, '', 'pending', '', null, '');
+  log(`[${jobId}] picked up`);
+
+  let job;
+  try {
+    const raw = await readFile(jobsDir, jobId + '_job.json');
+    job = JSON.parse(raw);
+  } catch (e) {
+    await writeResult(jobsDir, jobId, { status: 'error', error: 'Failed to parse job.json: ' + e.message });
+    updateJobRow(jobId, '?', 'error', 'parse error', '', 'Failed to parse job.json');
+    return;
+  }
+
+  const description = job.description || describeJob(job);
+  updateJobRow(jobId, job.tool, 'running', description, '', '');
+  log(`[${jobId}] running tool: ${job.tool}`);
+
+  // Mark as running
+  await writeFile(jobsDir, jobId + '_out.json',
+    JSON.stringify({ id: jobId, status: 'running', started_at: new Date().toISOString() }));
+
+  // Tool lookup: user_tools/ takes precedence over tools/
+  let toolCode;
+  let toolSource;
+  for (const candidate of ['user_tools/' + job.tool + '.js', 'tools/' + job.tool + '.js']) {
+    try { toolCode = await readFile(rootHandle, candidate); toolSource = candidate; break; } catch {}
+  }
+  if (!toolCode) {
+    const err = 'Tool not found in user_tools/ or tools/: ' + job.tool + '.js';
+    await writeResult(jobsDir, jobId, { status: 'error', error: err });
+    updateJobRow(jobId, job.tool, 'error', description, '', err);
+    log(`[${jobId}] error: ${err}`);
+    return;
+  }
+  log(`[${jobId}] loaded tool from ${toolSource}`);
+
+  // Build fs helper that the tool uses
+  const fsDef = buildFsHelper(sessionHandle, rootHandle);
+
+  // Execute in Web Worker via Blob URL (no unsafe-eval required)
+  const workerSrc = `
+    ${toolCode}
+    self.onmessage = async (e) => {
+      try {
+        const result = await run(e.data.params, e.data.fs);
+        self.postMessage({ ok: true, result });
+      } catch (err) {
+        self.postMessage({ ok: false, error: err.message });
+      }
+    };
+  `;
+
+  // Tools run in the main thread via AsyncFunction (File System Access API is main-thread only).
+  try {
+    const AsyncFunction = Object.getPrototypeOf(async function(){}).constructor;
+    const wrapped = new AsyncFunction('params', 'fs', toolCode + '\nreturn run(params, fs);');
+    const output = await wrapped(job.params ?? {}, fsDef);
+    const finishedAt = new Date();
+    const duration = ms(startTime);
+    await writeResult(jobsDir, jobId, { status: 'done', output, completed_at: finishedAt.toISOString() });
+    updateJobRow(jobId, job.tool, 'done', description, finishedAt, JSON.stringify(output));
+    log(`[${jobId}] done in ${duration}: ` + JSON.stringify(output));
+    await pruneJobs(jobsDir);
+  } catch (e) {
+    const finishedAt = new Date();
+    const duration = ms(startTime);
+    await writeResult(jobsDir, jobId, { status: 'error', error: e.message });
+    updateJobRow(jobId, job.tool, 'error', description, finishedAt, e.message);
+    log(`[${jobId}] error in ${duration}: ${e.message}`);
+    await pruneJobs(jobsDir);
+  }
+}
+
+// ─── Backend job pruning ──────────────────────────────────────────────────────
+// Job IDs are timestamp-prefixed (yyyyMMddHHmmss-xxxxxxxx) so alphabetical sort
+// is chronological. Removes the oldest .job.json / .out.json pairs beyond the cap.
+async function pruneJobs(jobsDir, maxJobs = 50) {
+  try {
+    const ids = [];
+    for await (const [name, handle] of jobsDir.entries()) {
+      if (handle.kind === 'file' && name.endsWith('_job.json'))
+        ids.push(name.slice(0, -'_job.json'.length));
+    }
+    ids.sort();
+    const excess = ids.length - maxJobs;
+    for (let i = 0; i < excess; i++) {
+      for (const suffix of ['_job.json', '_out.json']) {
+        try { await jobsDir.removeEntry(ids[i] + suffix); } catch {}
+      }
+      log(`pruned old job: ${ids[i]}`);
+    }
+  } catch (e) { log(`pruneJobs error: ${e.message}`); }
+}
+
+function describeJob(job) {
+  if (!job.params) return job.tool;
+  const p = job.params;
+  const file = p.file || p.path || '';
+  return file ? `${job.tool}: ${file}` : job.tool;
+}
+
+function buildFsHelper(sessionHandle, rootHandle) {
+  return {
+    async read(path) {
+      return readFile(sessionHandle, path);
+    },
+    async write(path, content) {
+      return writeFile(sessionHandle, path, content);
+    },
+    async readRoot(path) {
+      return readFile(rootHandle, path);
+    },
+    async writeRoot(path, content) {
+      return writeFile(rootHandle, path, content);
+    },
+    async readSecret(name) {
+      if (!secretsHandle) throw new Error('readSecret: no secrets folder connected — pick one in the runner setup panel');
+      const fh = await secretsHandle.getFileHandle(name);
+      const file = await fh.getFile();
+      return (await file.text()).trim();
+    },
+  };
+}
+
+async function writeResult(jobsDir, jobId, data) {
+  await writeFile(jobsDir, jobId + '_out.json',
+    JSON.stringify({ id: jobId, ...data }));
+}
+
+function ms(start) { return ((Date.now() - start) / 1000).toFixed(1) + 's'; }
+
+// ─── Job table UI ─────────────────────────────────────────────────────────────
+const MAX_ROWS = 50;
+
+function fmtTime(d) {
+  if (!d) return '—';
+  return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
+}
+
+function addJobRow(jobId, sessionId, tool, status, description, finishedAt, output) {
+  document.getElementById('jobsEmpty').style.display = 'none';
+  document.getElementById('jobsTable').style.display = '';
+  const tbody = document.getElementById('jobsBody');
+
+  // Enforce 50-row cap — remove oldest (last child) if needed
+  while (tbody.rows.length >= MAX_ROWS) tbody.deleteRow(tbody.rows.length - 1);
+
+  const startedAt = jobStartTimes[jobId] || new Date();
+  const tr = document.createElement('tr');
+  tr.innerHTML = `
+    <td style="white-space:nowrap;font-size:0.8rem" class="started-cell">${fmtTime(startedAt)}</td>
+    <td style="white-space:nowrap;font-size:0.8rem" class="finished-cell">${finishedAt ? fmtTime(finishedAt) : '—'}</td>
+    <td><span class="pill ${status} status-cell">${status}</span></td>
+    <td style="font-size:0.8rem"><code class="session-cell">${esc(sessionId)}</code></td>
+    <td style="font-size:0.8rem"><code class="tool-cell">${esc(tool)}</code></td>
+    <td style="font-size:0.82rem" class="desc-cell">${esc(description)}</td>
+    <td style="font-size:0.8rem;word-break:break-all;" class="out-cell">${esc(output)}</td>
+  `;
+  tbody.prepend(tr);
+  jobRows[jobId] = tr;
+  updateJobCount();
+}
+
+function updateJobRow(jobId, tool, status, description, finishedAt, output) {
+  const tr = jobRows[jobId];
+  if (!tr) return;
+  tr.querySelector('.tool-cell').textContent = tool;
+  tr.querySelector('.desc-cell').textContent = description;
+  const pill = tr.querySelector('.status-cell');
+  pill.className = 'pill ' + status + ' status-cell';
+  pill.textContent = status;
+  tr.querySelector('.finished-cell').textContent = finishedAt ? fmtTime(finishedAt) : '—';
+  const outEl = tr.querySelector('.out-cell');
+  outEl.textContent = output;
+}
+
+function updateJobCount() {
+  const n = document.getElementById('jobsBody').rows.length;
+  document.getElementById('jobCount').textContent = n ? `(${n} / last ${MAX_ROWS})` : '';
+}
+
+function esc(str) {
+  return String(str ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+</script>
+</body>
+</html>

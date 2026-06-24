@@ -1,5 +1,5 @@
 kind: TaskDialog
-modelDescription: Create or overwrite a text file
+modelDescription: "Purpose: create or overwrite a text file in the session folder."
 outputs:
   - propertyName: success
 
@@ -11,6 +11,6 @@ action:
   connectionProperties:
     $kind: ConnectionProperties
     diagnostics:
-    mode: Maker
+    mode: Invoker
 
 outputMode: All

@@ -3,11 +3,11 @@
 > **⚠️ Disclaimer:** This is a hobby project developed as a proof of concept. It is **not intended for production use**. Use it at your own risk. If you plan to deploy it in a corporate environment, always check with your IT department first to ensure it does not violate any company policy.
 
 
-**Goal:** build the eight Power Automate flows that give the Copilot Studio agent its file operations.  
-**Deliverables:** the eight working flows in your Power Platform environment · optional backup export of the `FolderBot` solution.
+**Goal:** build the Power Automate flows that give the Copilot Studio agent its file operations.  
+**Deliverables:** eleven core flows (required) + one optional RunJS flow · optional backup export of the `FolderBot` solution.
 
 At the end of this step the flow layer can create and resume sessions, read and write text files,
-list folder contents, and maintain `history.jsonl`. If you are following the manual path, the
+list folder contents, maintain `history.jsonl`, and perform scoped line reads and in-place replacements. If you are following the manual path, the
 Copilot Studio agents are created and wired in [`copilot-studio-agents.md`](copilot-studio-agents.md).
 
 ---
@@ -634,6 +634,431 @@ to the agent can crowd out instructions, memory, and the current user request.
 
 ---
 
+### Flow 9 — GetSOUL
+
+**Purpose:** read `SOUL.md` from the FolderBot root folder and return its content as the active
+behavioral contract for SessionBot. If `SOUL.md` does not exist, create it with the default
+content and return that. This makes the system self-healing on first deploy — no manual setup
+step is required for `SOUL.md`.
+
+**Inputs:** *(none)*
+
+**Steps:**
+
+1. **Initialize variable** `soulContent`
+
+   | Field | Value |
+   |---|---|
+   | Name | `soulContent` |
+   | Type | `String` |
+   | Value | *(empty)* |
+
+2. **Compose** `soulPath`:
+   ```text
+   /@{parameters('xyz_folderbot_root')}/SOUL.md
+   ```
+
+3. **Compose** `defaultSoul` — paste the content of `agents/SOUL.md` verbatim as the value.
+   This is the fallback written to OneDrive if `SOUL.md` is missing:
+   ```text
+   # OpenMaja FolderBot — Global Rules
+   ...
+   ```
+   *(copy the full text from `agents/SOUL.md` in the repo)*
+
+4. **Scope** `try_read`
+
+   Inside the scope:
+   - **OneDrive for Business — Get file metadata using path**  
+     File path: output of `soulPath`  
+     *(rename the action to `Get_soul_metadata`)*
+   - **OneDrive for Business — Get file content using path**  
+     File path: output of `soulPath`  
+     *(rename the action to `Get_soul_content`)*
+   - **Set variable** `soulContent`  
+     Value: body of `Get_soul_content`
+
+5. **Scope** `create_default`
+
+   Configure **Run after** so this scope runs only if `try_read` has **failed**.
+
+   Inside the scope:
+   - **OneDrive for Business — Create file**  
+     Folder path: `/@{parameters('xyz_folderbot_root')}`  
+     File name: `SOUL.md`  
+     File content: output of `defaultSoul`
+   - **Set variable** `soulContent`  
+     Value: output of `defaultSoul`
+
+6. **Respond to the agent**
+
+   Place this after `create_default` and configure **Run after** so it runs when
+   `create_default` is either **successful** or **skipped**.
+
+   This covers both valid paths:
+   - `SOUL.md` found: `try_read` succeeds → `create_default` is skipped → respond runs
+   - `SOUL.md` missing: `try_read` fails → `create_default` succeeds → respond runs
+
+   Response body:
+
+   | Output | Value |
+   |---|---|
+   | `soul_content` | variable `soulContent` |
+
+   > **Why a shared variable instead of two Respond steps?** Both scopes write to `soulContent`
+   > before this step, so the single Respond action can safely reference the variable regardless
+   > of which path ran. This avoids duplicating the Respond action and keeps the flow's response
+   > contract in one place.
+
+**Output fields to define on trigger:** `soul_content` (Text).
+
+---
+
+### Flow 10 — ReadFileLines
+
+**Purpose:** return a line range from a session file without injecting the full content into agent
+context. The agent requests a specific window (e.g. lines 50–100) and also receives the total line
+count, so it can paginate through large files without ever loading them in full.
+
+**Inputs:**
+| Name | Type | Required | Description |
+|---|---|---|---|
+| `session_id` | Text | Yes | |
+| `file_path` | Text | Yes | Session-relative path, e.g. `outputs/report.md` |
+| `from_line` | Number | Yes | First line to return (1-indexed, inclusive) |
+| `to_line` | Number | Yes | Last line to return (inclusive) |
+
+**Steps:**
+
+1. **Compose** `fullPath`:
+   ```
+   /@{parameters('xyz_folderbot_root')}/sessions/@{triggerBody()?['session_id']}/@{triggerBody()?['file_path']}
+   ```
+
+2. **OneDrive for Business — Get file metadata using path** (path: output of `fullPath`).  
+   *(rename the action to `Get_file_metadata`)*
+
+3. **Condition** — size guard:
+   ```
+   @greater(int(outputs('Get_file_metadata')?['body/Size']), mul(int(parameters('xyz_folderbot_max_file_size_kb')), 1024))
+   ```
+   - **Yes (over limit):**
+     - **Respond to the agent** `{ "success": "false", "error": "File size exceeds the configured limit." }`
+     - **Terminate** (Succeeded)
+
+4. **OneDrive for Business — Get file content using path** (path: output of `fullPath`).  
+   *(rename the action to `Read_content`)*
+
+5. **Compose** `allLines`:
+   ```
+   @split(body('Read_content'), decodeUriComponent('%0A'))
+   ```
+
+6. **Compose** `totalLines`:
+   ```
+   @length(outputs('allLines'))
+   ```
+
+7. **Compose** `slicedLines`:
+   ```
+   @take(
+     skip(outputs('allLines'), sub(int(triggerBody()?['from_line']), 1)),
+     add(sub(int(triggerBody()?['to_line']), int(triggerBody()?['from_line'])), 1)
+   )
+   ```
+
+   > `skip(array, N)` discards the first N elements (converting 1-indexed to 0-indexed).
+   > `take(array, M)` keeps the next M elements. Together they slice an inclusive range.
+
+8. **Compose** `content`:
+   ```
+   @join(outputs('slicedLines'), decodeUriComponent('%0A'))
+   ```
+
+9. **Respond to the agent**:
+
+   | Output | Value |
+   |---|---|
+   | `success` | `true` |
+   | `content` | output of `content` |
+   | `total_lines` | output of `totalLines` |
+
+**Output fields to define on trigger:** `success` (Text), `content` (Text), `total_lines` (Text), `error` (Text).
+
+---
+
+### Flow 11 — ReplaceInFile
+
+**Purpose:** apply one or more exact-string replacements to a session file in-place. The agent
+provides an ordered list of `(old_text, new_text)` pairs; the flow reads the file, applies each
+replacement sequentially, and writes the result back. Returns the count of pairs that matched and
+a boolean `any_matched` flag.
+
+**Inputs:**
+| Name | Type | Required | Description |
+|---|---|---|---|
+| `session_id` | Text | Yes | |
+| `file_path` | Text | Yes | Session-relative path, e.g. `outputs/report.md` |
+| `replacements` | Text | Yes | JSON array string: `[{"old_text":"…","new_text":"…"}, …]` |
+
+> **Why Text for `replacements`?** Copilot Studio actions pass complex inputs as JSON strings.
+> The flow parses the value with `json()` before iterating. The agent must serialise the array
+> before calling the action.
+
+**Steps:**
+
+1. **Compose** `fullPath`:
+   ```
+   /@{parameters('xyz_folderbot_root')}/sessions/@{triggerBody()?['session_id']}/@{triggerBody()?['file_path']}
+   ```
+
+2. **OneDrive for Business — Get file metadata using path** (path: output of `fullPath`).  
+   *(rename the action to `Get_file_metadata`)*
+
+3. **Condition** — size guard (same expression as Flow 10 Step 3):
+   - **Yes (over limit):** Respond with error + Terminate.
+
+4. **OneDrive for Business — Get file content using path** (path: output of `fullPath`).  
+   *(rename the action to `Read_content`)*
+
+5. **Initialize variable** `currentContent`
+
+   | Field | Value |
+   |---|---|
+   | Name | `currentContent` |
+   | Type | `String` |
+   | Value | `@{body('Read_content')}` |
+
+6. **Initialize variable** `replacementsMade`
+
+   | Field | Value |
+   |---|---|
+   | Name | `replacementsMade` |
+   | Type | `Integer` |
+   | Value | `0` |
+
+7. **Apply to each** — iterate over `@json(triggerBody()?['replacements'])`.
+
+   Inside the loop:
+
+   a. **Condition** — old_text found?
+      ```
+      @contains(variables('currentContent'), items('Apply_to_each')['old_text'])
+      ```
+      - **Yes:**
+        - **Compose** `replacedContent`:
+          ```
+          @replace(variables('currentContent'), items('Apply_to_each')['old_text'], items('Apply_to_each')['new_text'])
+          ```
+        - **Set variable** `currentContent`:
+          ```
+          @outputs('replacedContent')
+          ```
+        - **Increment variable** `replacementsMade` by `1`
+
+   > **Why the intermediate Compose?** Power Automate does not allow a Set variable action to
+   > reference the same variable in its value expression (`WorkflowRunActionInputsInvalidProperty`
+   > — "Self reference is not supported"). The Compose step breaks the self-reference: it computes
+   > the new value independently, then Set variable reads the Compose output instead.
+
+   > `replace()` in Power Automate replaces all non-overlapping occurrences. If the agent needs
+   > to replace only the first occurrence, it must pass a narrower `old_text` that uniquely
+   > identifies that occurrence.
+
+8. **OneDrive for Business — Get file metadata using path** (path: output of `fullPath`).  
+   *(needed for the file ID used by Update file)*
+
+9. **OneDrive for Business — Update file** using the file ID from Step 8 and content from `currentContent`.
+
+10. **Respond to the agent**:
+
+    | Output | Value |
+    |---|---|
+    | `success` | `true` |
+    | `replacements_made` | `@{variables('replacementsMade')}` |
+    | `any_matched` | `@{greater(variables('replacementsMade'), 0)}` |
+
+**Output fields to define on trigger:** `success` (Text), `replacements_made` (Text), `any_matched` (Text), `error` (Text).
+
+---
+
+---
+
+### Flow 12 — RunJS *(optional — requires runner setup)*
+
+> This flow is only needed if you are setting up the browser-based local runner (Step 4 in
+> `runner-setup.md`). All core FolderBot operations work without it.
+
+**Purpose:** write a tool job descriptor to the session `jobs/` folder and poll for the result
+produced by the FolderBot browser runner. Blocks until the runner writes `<jobId>.out.json` or the
+timeout expires. Returns the tool output (or a `timeout` status) to the agent.
+
+**Inputs** (defined on the trigger):
+
+| Name | Type | Required | Description |
+|---|---|---|---|
+| `session_id` | Text | Yes | Session folder name |
+| `tool` | Text | Yes | Tool name matching a `.js` file in `tools/` or `user_tools/` |
+| `params` | Text | Yes | JSON string of tool-specific parameters |
+| `description` | Text | Yes | Human-readable description of what the job does (max 280 chars) |
+| ~~`timeout_seconds`~~ | — | — | Removed — timeout is hardcoded to 60 s in the flow |
+
+**Output fields to define on trigger:** `success` (Text), `status` (Text), `output` (Text), `error` (Text).
+
+**Steps:**
+
+1. **Compose** `jobId`
+
+   Generates a unique, time-ordered job ID:
+
+   ```text
+   @{concat(utcNow('yyyyMMddHHmmss'), '-', substring(guid(), 0, 8))}
+   ```
+
+2. **Compose** `jobPath`
+
+   Session-relative path where the job file will be written:
+
+   ```text
+   @{concat('jobs/', outputs('jobId'), '_job.json')}
+   ```
+
+3. **Compose** `resultPath`
+
+   Path the runner will write its result to:
+
+   ```text
+   @{concat('jobs/', outputs('jobId'), '_out.json')}
+   ```
+
+4. **Compose** `jobPayload`
+
+   Builds the JSON job descriptor:
+
+   ```text
+   @{concat('{"id":"', outputs('jobId'), '","session_id":"', triggerBody()['session_id'], '","tool":"', triggerBody()['tool'], '","params":', triggerBody()['params'], ',"description":"', replace(replace(triggerBody()['description'], '"', '\"'), uriComponentToString('%0A'), ' '), '","created_at":"', utcNow(), '"}')}
+   ```
+
+   > The nested `replace` calls escape double-quotes and strip newlines from the description — both would produce invalid JSON if left raw.
+
+5. **OneDrive for Business — Create file** to write the job file
+
+   | Field | Value |
+   |---|---|
+   | Folder path | `/@{parameters('xyz_folderbot_root')}/sessions/@{triggerBody()['session_id']}/jobs` |
+   | File name | `@{outputs('jobId')}_job.json` |
+   | File content | `@{outputs('jobPayload')}` |
+
+   > Jobs are flat files directly inside the `jobs/` folder — no subfolders per job.
+   > Using `_job.json` (underscore) avoids the double-extension issue where OneDrive
+   > mangles filenames like `abc.job.json` by appending `---<guid>` before `.json`.
+
+6. **Initialize variable** `elapsedSeconds`
+
+   | Field | Value |
+   |---|---|
+   | Name | `elapsedSeconds` |
+   | Type | Integer |
+   | Value | `0` |
+
+7. **Initialize variable** `resultContent`
+
+   | Field | Value |
+   |---|---|
+   | Name | `resultContent` |
+   | Type | String |
+   | Value | *(empty)* |
+
+8. **Do Until** loop — poll for `<jobId>_out.json`
+
+   **Loop condition (stop when true):**
+   ```text
+   @or(not(empty(variables('resultContent'))), greaterOrEquals(variables('elapsedSeconds'), 60))
+   ```
+
+   **Limit:** Count = 30, Timeout = PT5M
+
+   **Actions inside the loop:**
+
+   a. **Delay** — 5 seconds
+      | Field | Value |
+      |---|---|
+      | Unit | Second |
+      | Count | `5` |
+
+   b. **Compose** `newElapsed`
+      ```text
+      @{add(variables('elapsedSeconds'), 5)}
+      ```
+
+   c. **Set variable** `elapsedSeconds`
+      | Field | Value |
+      |---|---|
+      | Name | `elapsedSeconds` |
+      | Value | `@{outputs('newElapsed')}` |
+
+   d. **Scope** — try to read result *(configure **Run after**: succeeded)*
+
+      Inside the scope:
+
+      - **OneDrive for Business — Get file content using path**
+
+        | Field | Value |
+        |---|---|
+        | File path | `/@{parameters('xyz_folderbot_root')}/sessions/@{triggerBody()['session_id']}/@{outputs('resultPath')}` |
+
+      - **Condition** — check result is ready
+
+        ```text
+        @not(equals(json(body('Get_file_content_using_path')?['$content'])?['status'], 'running'))
+        ```
+
+        **If true:**
+        - **Set variable** `resultContent`
+          | Field | Value |
+          |---|---|
+          | Name | `resultContent` |
+          | Value | `@{base64ToString(body('Get_file_content_using_path')?['$content'])}` |
+
+      Configure the **Scope** with **Run after: succeeded** on the Delay.
+      Configure the inner **Get file content** with **Run after: succeeded** on the scope entry.
+      The scope itself may fail (file not yet present) — that is expected; the loop continues.
+
+9. **Condition** — check if we timed out
+
+   ```text
+   @empty(variables('resultContent'))
+   ```
+
+   **If true** (timeout):
+   - **Respond to the agent**:
+
+     | Output | Value |
+     |---|---|
+     | `success` | `false` |
+     | `status` | `timeout` |
+     | `output` | *(empty)* |
+     | `error` | `Runner did not respond within the timeout period. Ensure tools/runner.html is open and connected.` |
+
+   - **Terminate** (Status: Succeeded — this is a normal outcome, not an error)
+
+10. **Compose** `resultJson`
+
+    ```text
+    @{json(variables('resultContent'))}
+    ```
+
+11. **Respond to the agent**:
+
+    | Output | Value |
+    |---|---|
+    | `success` | `@{equals(outputs('resultJson')?['status'], 'done')}` |
+    | `status` | `@{outputs('resultJson')?['status']}` |
+    | `output` | `@{string(outputs('resultJson')?['output'])}` |
+    | `error` | `@{outputs('resultJson')?['error']}` |
+
+---
+
 ## Step 5 — Test each flow standalone
 
 Before connecting to Copilot Studio, test each flow using the **Test** button in Power Automate:
@@ -649,6 +1074,12 @@ Minimum test matrix:
 - ReadTextFile → `history.jsonl` (verify the line was appended)
 - ListSessions → confirm the test session appears
 - DeleteFile → `outputs/hello.txt`
+- GetSOUL → run with `SOUL.md` present; verify `soul_content` is returned
+- GetSOUL → rename/delete `SOUL.md` in OneDrive, run again; verify the file is recreated with default content and returned
+- ReadFileLines → `memory.md`, `from_line=1`, `to_line=5`; verify `content` contains the first 5 lines and `total_lines` reflects the full file
+- ReplaceInFile → write a test file with known content, pass one replacement pair, verify the file is updated and `replacements_made=1`
+- ReplaceInFile → pass an `old_text` that does not exist; verify `any_matched=false` and file is unchanged
+- RunJS *(if runner is set up)* → drop a manual `<jobId>_job.json` in the session `jobs/` folder, verify the runner picks it up and `<jobId>_out.json` is written; then call the flow and verify it returns `status: done`; call again with runner closed and verify `status: timeout`
 
 ---
 

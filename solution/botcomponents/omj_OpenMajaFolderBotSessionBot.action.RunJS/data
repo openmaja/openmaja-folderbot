@@ -1,0 +1,21 @@
+kind: TaskDialog
+modelDescription: Execute a JavaScript tool on session files using the local FolderBot browser runner. Use this to patch files with a diff, perform regex find/replace, call external APIs, or run any custom tool in user_tools/. Requires the runner page (tools/runner.html) to be open and connected.
+outputs:
+  - propertyName: success
+
+  - propertyName: status
+
+  - propertyName: error
+
+  - propertyName: output
+
+action:
+  kind: InvokeFlowTaskAction
+  flowId: cbc843ca-176b-f111-ab0d-7c1e5235b19f
+  connectionProperties:
+    $kind: ConnectionProperties
+    diagnostics:
+    mode: Invoker
+    usageDescription: Execute a JavaScript tool on session files using the local FolderBot browser runner. Use this to patch files with a diff, perform regex find/replace, call external APIs, or run any custom tool in user_tools/. Requires the runner page (tools/runner.html) to be open and connected.
+
+outputMode: All

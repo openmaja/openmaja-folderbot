@@ -1,0 +1,142 @@
+name: RunJS
+trigger: copilot_action
+description: >
+  Write a job descriptor to the session jobs/ folder and poll for the result
+  produced by the FolderBot browser runner. The runner must be open and connected
+  to the FolderBot root folder for this action to complete. If the runner is not
+  running, the action times out and returns status "timeout".
+
+  This action is optional — the agent must check the RunJS availability flag in
+  SOUL.md before calling it. If RunJS is disabled, the agent must use the standard
+  PA flow actions instead.
+
+inputs:
+  session_id:
+    type: string
+    required: true
+  tool:
+    type: string
+    required: true
+    description: "Tool name matching a file in FolderBot/tools/ (e.g. 'patch', 'regex-replace')"
+  params:
+    type: string
+    required: true
+    description: "JSON string of tool-specific parameters"
+  description:
+    type: string
+    required: true
+    description: >
+      Human-readable description of what this job does, written by the agent (max 280 chars).
+      Shown in the runner job history table.
+      Example: "Apply diff to outputs/report.md — add executive summary paragraph after introduction".
+  # timeout is hardcoded to 60 seconds in the flow — not an agent input
+
+outputs:
+  success:    { type: boolean }
+  status:     { type: string, description: "'done' | 'error' | 'timeout'" }
+  output:     { type: string, description: "JSON string of tool result output field" }
+  error:      { type: string }
+
+steps:
+  - id: job_id
+    action: compose
+    # Generate a UUID-like ID from timestamp + random suffix
+    value: "@concat(utcNow('yyyyMMddHHmmss'), '-', substring(guid(), 0, 8))"
+
+  - id: job_path
+    action: compose
+    value: "jobs/@{outputs('job_id')}_job.json"
+
+  - id: result_path
+    action: compose
+    value: "jobs/@{outputs('job_id')}_out.json"
+
+  - id: job_payload
+    action: compose
+    value: >
+      @{concat(
+        '{"id":"', outputs('job_id'),
+        '","session_id":"', inputs.session_id,
+        '","tool":"', inputs.tool,
+        '","params":', inputs.params,
+        ',"description":"', replace(replace(inputs.description, '"', '\"'), uriComponentToString('%0A'), ' '),
+        '","created_at":"', utcNow(),
+        '"}'
+      )}
+
+  - id: write_job
+    action: WriteTextFile
+    inputs:
+      session_id: "@{inputs.session_id}"
+      file_path: "@{outputs('job_path')}"
+      content: "@{outputs('job_payload')}"
+
+  # Poll result.json every 5 seconds up to timeout_seconds (default 60)
+  - id: init_elapsed
+    action: initialize_variable
+    name: elapsedSeconds
+    type: integer
+    value: 0
+
+  - id: init_result
+    action: initialize_variable
+    name: resultContent
+    type: string
+    value: ""
+
+  - id: poll_loop
+    action: do_until
+    expression: "@or(not(empty(variables('resultContent'))), greaterOrEquals(variables('elapsedSeconds'), 60))"
+    limit:
+      count: 30
+      timeout: PT5M
+    actions:
+      - id: wait
+        action: delay
+        seconds: 5
+
+      - id: increment
+        action: set_variable
+        name: elapsedSeconds
+        value: "@add(variables('elapsedSeconds'), 5)"
+
+      - id: try_read_result
+        action: scope
+        actions:
+          - id: read_result
+            action: ReadTextFile
+            inputs:
+              session_id: "@{inputs.session_id}"
+              file_path: "@{outputs('result_path')}"
+          - id: check_done
+            action: condition
+            if: "@and(outputs('read_result')?['body/success'], not(equals(json(outputs('read_result')?['body/content'])?['status'], 'running')))"
+            true:
+              - id: store_result
+                action: set_variable
+                name: resultContent
+                value: "@{outputs('read_result')?['body/content']}"
+
+  - id: parse_result
+    action: condition
+    if: "@empty(variables('resultContent'))"
+    true:
+      - action: copilot.respond
+        body:
+          success: false
+          status: timeout
+          output: ""
+          error: "Runner did not respond within the timeout period. Ensure tools/runner.html is open and connected."
+      - action: terminate
+
+  - id: result_json
+    action: compose
+    value: "@json(variables('resultContent'))"
+
+  - id: respond
+    action: copilot.respond
+    body:
+      success: "@equals(outputs('result_json')?['status'], 'done')"
+      status: "@{outputs('result_json')?['status']}"
+      output: "@{string(outputs('result_json')?['output'])}"
+      error: "@{outputs('result_json')?['error']}"

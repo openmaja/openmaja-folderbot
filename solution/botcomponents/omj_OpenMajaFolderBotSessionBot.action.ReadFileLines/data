@@ -1,0 +1,20 @@
+kind: TaskDialog
+modelDescription: "Purpose: return a line range from a session file without injecting the full content into agent context. The agent requests a specific window (e.g. lines 50–100) and also receives the total line count, so it can paginate through large files without ever loading them in full."
+outputs:
+  - propertyName: success
+
+  - propertyName: error
+
+  - propertyName: content
+
+  - propertyName: total_lines
+
+action:
+  kind: InvokeFlowTaskAction
+  flowId: 9602c837-4162-f111-a826-7c1e5235b19f
+  connectionProperties:
+    $kind: ConnectionProperties
+    diagnostics:
+    mode: Invoker
+
+outputMode: All
